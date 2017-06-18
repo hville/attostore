@@ -1,0 +1,8 @@
+var Loader = require('node-es-module-loader')
+var loader = new Loader
+
+function esImport(name) {
+	return (new Loader).import(name)
+}
+
+esImport('../src/is-eq').then(function(m) {console.log(m.isEqual(1,2))})

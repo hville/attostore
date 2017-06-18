@@ -2,13 +2,16 @@
 var attoStore = (function () {
 'use strict';
 
-// @ts-check
+/**
+ * @param {!Array|string} path
+ * @param {!Array} [root]
+ * @returns {!Array}
+ */
 function getKeys(path, root) {
 	var keys = root || [];
 	return !path ? keys : keys.concat(Array.isArray(path) ? path : path.split('/'))
 }
 
-// @ts-check
 /**
  * @constructor
  * @param {!Object} root
@@ -23,20 +26,6 @@ function Ref(root, keys) {
 Ref.prototype = {
 
 	get path() { return this.keys.join('/') },
-/*	get data() {
-		for (var i=0, val=this.root.data, keys = this.keys; i<keys.length; ++i) {
-			if (typeof val !== 'object') return undefined
-			val = val[keys[i]]
-		}
-		return val
-	},
-	get last() {
-		for (var i=0, val=this.root.last, keys = this.keys; i<keys.length; ++i) {
-			if (typeof val !== 'object') return undefined
-			val = val[keys[i]]
-		}
-		return val
-	},*/
 
 	set: function(val) {
 		this.root.set(this.keys, val);
@@ -47,28 +36,26 @@ Ref.prototype = {
 		return !path ? this : new Ref(this.root, getKeys(path, this.keys))
 	},
 
-	on: function(path, fcn, ctx) {
-		this.root.events.on(getKeys(path, this.keys), fcn, ctx||this, 0);
+	on: function(evt, fcn, ctx) {
+		this.root.events.on(evt, this.keys, fcn, ctx||this, 0);
 		return this
 	},
 
-	off: function(path, fcn, ctx) {
-		this.root.events.off(getKeys(path, this.keys), fcn, ctx||this, 0);
+	off: function(evt, fcn, ctx) {
+		this.root.events.off(evt, this.keys, fcn, ctx||this, 0);
 		return this
 	},
 
-	once: function(path, fcn, ctx) {
-		this.root.events.once(getKeys(path, this.keys), fcn, ctx||this, 0);
+	once: function(evt, fcn, ctx) {
+		this.root.events.once(evt, this.keys, fcn, ctx||this, 0);
 		return this
 	}
 };
 
-// @ts-check
 function get(obj, key) {
 	if (typeof obj === 'object') return obj[key]
 }
 
-// @ts-check
 function reduce(source, callback, result, context) {
 	var ctx = context || this;
 	if (Array.isArray(source)) for (var i=0; i<source.length; ++i) {
@@ -80,11 +67,11 @@ function reduce(source, callback, result, context) {
 	return result
 }
 
-// @ts-check
 /**
  * @constructor
  */
 function Events() {
+	//add, mod, del, val
 	this.evts = [];
 	this.kids = {};
 }
@@ -92,26 +79,22 @@ function Events() {
 Events.prototype = {
 	constructor: Events,
 
-	indexOf: function (fcn, ctx) {
-		for (var i=0, evts=this.evts; i<evts.length; ++i) if (evts[i].f === fcn && evts[i].c === ctx) return i
-		return -1
-	},
 
-	on: function(keys, fcn, ctx, pos) {
+	on: function(etyp, keys, fcn, ctx, pos) {
 		if (keys.length === (pos||0)) {
 			// only add if it does not exist
-			if (this.indexOf(fcn, ctx) === -1) this.evts.push({f: fcn, c:ctx||null});
+			if (indexOfEvt(this.evts, fcn, ctx) === -1) this.evts.push({f: fcn, c:ctx||null});
 		}
 		else {
 			var kids = this.kids;
 			if (!kids[keys[pos]]) kids[keys[pos]] = new Events;
-			kids[keys[pos]].on(keys, fcn, ctx, (pos||0)+1);
+			kids[keys[pos]].on(etyp, keys, fcn, ctx, (pos||0)+1);
 		}
 	},
 
-	off: function(keys, fcn, ctx, pos) {
+	off: function(etyp, keys, fcn, ctx, pos) {
 		if (keys.length === (pos||0)) {
-			var idx = this.indexOf(fcn, ctx);
+			var idx = indexOfEvt(this.evts, fcn, ctx);
 			if (idx !== -1) this.evts.splice(idx, 1);
 		}
 		else {
@@ -123,12 +106,12 @@ Events.prototype = {
 		}
 	},
 
-	once: function(keys, fcn, ctx) {
+	once: function(etyp, keys, fcn, ctx) {
 		function wrapped(data, last, ks) {
-			this.off(keys, wrapped, this, 0);
+			this.off(etyp, keys, wrapped, this, 0);
 			fcn.call(ctx || this, data, last, ks);
 		}
-		return this.on(keys, wrapped, this, 0)
+		return this.on(etyp, keys, wrapped, this, 0)
 	},
 
 	fire: function(data, last, keys) {
@@ -159,8 +142,11 @@ function added(r,v,k) {
 	if (this[k] === undefined) r.push(k);
 	return r
 }
+function indexOfEvt(lst, fcn, ctx) {
+	for (var i=0; i<lst.length; ++i) if (lst[i].f === fcn && lst[i].c === ctx) return i
+	return -1
+}
 
-// @ts-check
 /**
  * @function
  * @param {*} v - object to test
@@ -171,7 +157,6 @@ function cType(v) {
 	return v == null ? v : v.constructor || Object
 }
 
-// @ts-check
 /**
  * deep Equal check on JSON-like objects
  * @function
@@ -189,15 +174,14 @@ function isEqual(obj, ref) {
 		return true
 	}
 	if (cO === Object) {
-		var ko = Object.keys(obj);
-		if (ko.length !== Object.keys(ref).length) return false
+		var ko = Object.keys(obj); //TODO type annotation obj: Object
+		if (ko.length !== Object.keys(ref).length) return false //TODO type annotation typeof ref: Object
 		for (i=0; i<ko.length; ++i) if (!isEqual(obj[ko[i]], ref[ko[i]])) return false
 		return true
 	}
 	else return obj === ref
 }
 
-// @ts-check
 /**
  * @constructor
  * @param {*} initValue
@@ -219,15 +203,15 @@ Store.prototype = {
 	 * @return {!Object}
 	 */
 	set: function(path, value) {
-		var keys = getKeys(path);
-		var data = keys.length ? this._set(this.data, keys, value, 0)
-			: isEqual(this.data, value) ? this.data
+		var keys = getKeys(path),
+				data = this.data,
+				newD = keys.length ? this._setUp(data, keys, value, 0) : isEqual(data, value) ? data
 			: value;
-		if (data !== this.data && data !== undefined) {
+		if (newD !== this.data && newD !== undefined) {
 			this.error = '';
-			this.last = this.data;
-			this.data = data;
-			this.events.fire(data, this.last, keys);
+			this.last = data;
+			this.data = newD;
+			this.events.fire(newD, this.last, keys);
 		}
 		return this
 	},
@@ -283,23 +267,24 @@ Store.prototype = {
 	 * @param {number} step
 	 * @return {*}
 	 */
-	_set: function(leaf, keys, data, step) {
+	_setUp: function(leaf, keys, data, step) {
 		if (typeof leaf !== 'object') {
 			this.error = 'invalid path ' + keys.join('/') + ' at ' + step;
 			return leaf
 		}
 
-		var key = keys[step];
+		var key = keys[step],
+				val = data;
 
-		if (step === keys.length - 1) return isEqual(leaf[key], data) ? leaf
-			: Array.isArray(leaf) ? this._aSet(leaf, key, data)
-			: this._oSet(leaf, key, data)
+		if (step === keys.length - 1) {
+			if (isEqual(leaf[key], data)) return leaf
+		}
+		else {
+			val = this._setUp(leaf[key], keys, data, step + 1);
+			if (leaf[key] === val) return leaf
+		}
 
-		var val = this._set(leaf[key], keys, data, step + 1);
-
-		return leaf[key] === val ? leaf
-			: Array.isArray(leaf) ? this._aSet(leaf, key, val)
-			: this._oSet(leaf, key, val)
+		return Array.isArray(leaf) ? this._aSet(leaf, key, val) : this._oSet(leaf, key, val)
 	}
 };
 

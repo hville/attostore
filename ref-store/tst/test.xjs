@@ -1,0 +1,33 @@
+import {delKey} from './key-del'
+import {setKey} from './key-set'
+import {isEqual} from './is-eq'
+import {clone} from './clone'
+
+var t = require('cotest')
+
+var obs = {a0: {b0: 'b0'}, a1: 'a1'},
+    cln = clone(obs)
+
+console.info('=== cloning ===')
+assert(obs !== cln, 'different')
+assert(isEqual(obs, cln), 'equivalent')
+
+
+console.info('=== THE ULTIMATE ===')
+cln = set(obs, ['a2'], {b2: 'b2'})
+assert(obs !== cln, 'unequal')
+assert(!isEqual(obs, cln), 'different')
+assert(isEqual(obs, {a0: {b0: 'b0'}, a1: 'a1'}), 'immutable')
+assert(isEqual(cln.a2.b2, 'b2'), 'added')
+cln = set(obs, ['a1'], 'a1')
+assert(cln === cln, 'unchanged')
+
+cln = set(obs, ['a0', 'b1'], 'b1')
+assert(obs !== cln, 'unequal')
+assert(!isEqual(obs, cln), 'different')
+assert(isEqual(obs, {a0: {b0: 'b0'}, a1: 'a1'}), 'immutable')
+assert(isEqual(cln.a0.b1, 'b1'), 'added')
+cln = set(obs, ['a0', 'b0'], 'b0')
+assert(cln === cln, 'unchanged')
+
+console.info('=== * THE END * ===')

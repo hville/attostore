@@ -8,8 +8,15 @@ import {isEqual} from './is-eq'
  * @param {*} initValue
  */
 export function Store(initValue) {
-	//props: data, last, root, keys, path
-	this.events = new Events
+	this._keysTree = Object.create(null)
+	this._handlers = {
+		value: new Map,
+		child_added: new Map,
+		child_removed: new Map,
+		child_changed: new Map,
+	}
+
+
 	this.data = initValue == null ? null : initValue
 	this.last = null
 	this.error = ''
@@ -26,8 +33,7 @@ Store.prototype = {
 	set: function(path, value) {
 		var keys = getKeys(path),
 				data = this.data,
-				newD = keys.length ? this._setUp(data, keys, value, 0) : isEqual(data, value) ? data
-			: value
+				newD = keys.length ? this._setUp(data, keys, value, 0) : isEqual(data, value) ? data : value
 		if (newD !== this.data && newD !== undefined) {
 			this.error = ''
 			this.last = data
@@ -59,10 +65,12 @@ Store.prototype = {
 				return arr
 			}
 			tgt.length = key
+			//TODO delEvent(...)
 			return tgt
 		}
 		if (key <= arr.length) {
 			tgt[key] = val
+			//TODO add | mod event Event(...)
 			return tgt
 		}
 		this.error = 'invalid array index: ' + key
@@ -104,6 +112,8 @@ Store.prototype = {
 			val = this._setUp(leaf[key], keys, data, step + 1)
 			if (leaf[key] === val) return leaf
 		}
+		//TODO this line is parsed child --> parent events???
+		//TODO child == ..., fire, return
 
 		return Array.isArray(leaf) ? this._aSet(leaf, key, val) : this._oSet(leaf, key, val)
 	}
