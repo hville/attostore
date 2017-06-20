@@ -1,3 +1,9 @@
+TODO
+ref.set async
+store.set sync
+
+
+
 require(cotest)
 require(rollup)
 

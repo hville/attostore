@@ -3,7 +3,7 @@ import {getKey} from './get'
 import {isObj} from './type'
 
 export function set(val, ondone) {
-	setTimeout(asyncSet, 0, this.root, this.keys, val, ondone)
+	setTimeout(asyncSet, 0, this._db, this.keys, val, ondone)
 	return this
 }
 function asyncSet(root, keys, value, ondone) {

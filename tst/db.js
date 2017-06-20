@@ -22,20 +22,28 @@ t('db - ref', function(end) {
 			changed = []
 
 	db.on('child', addChanges, changed)
-	ra.on('child', addChanges, changed)
+	ra.once('child', addChanges, changed)
 	rb.on('child', addChanges, changed)
-	rc.on('child', addChanges, changed)
+	rc.once('child', addChanges, changed)
 	rd.on('child', addChanges, changed)
 	re.on('child', addChanges, changed)
 
-	ra.on('value', checkValue, changed)
+	ra.once('value', checkValue, changed)
 	db.on('value', checkValue, changed)
 
-
-	rb.set({cc:{dd:{e:'e'}}}) //TODO set async?
-
-	setTimeout(function() {
+	rb.set({cc:{dd:{e:'e'}}}, function(err, res) {
+		t('!', err)
+		t('{===}', res, {k: 'aa', aa:{k: 'bb', bb:{cc:{dd:{e:'e'}}}}})
 		t('{===}', changed, ['e', 'dd', 'cc', 'bb', 'aa', 'AA', 'BB'])
-		end()
+		rd.off('child', addChanges, changed)
+		re.off('child', addChanges, changed)
+		changed.length = 0
+		rb.set({cc:{d:'d'}}, function(e,r) {
+			t('!', e)
+			t('{===}', r, {k: 'aa', aa:{k: 'bb', bb:{cc:{d:'d'}}}})
+			t('{===}', changed, ['cc', 'aa', 'AA'])
+			t('{==}', db._db.event.dtree, {aa:{bb:{}}}, 'dereferencing dtree')
+			end()
+		})
 	})
 })
