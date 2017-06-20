@@ -1,5 +1,5 @@
 {
-  "name": "async-json-store",
+  "name": "attostore",
   "version": "0.0.1",
   "description": "async json data store",
   "keywords": [
@@ -18,8 +18,8 @@
   },
   "scripts": {
     "test": "npm run build:main & cotest ./tst",
-    "build:main": "rollup -o ./index.js -f cjs --banner \"/* hugov@runbox.com | https://github.com/hville/atto-store.git | license:MIT */\" ./module.js",
-    "build:browser": "rollup -o ./browser.js -f iife -n attoStore --banner \"/* hugov@runbox.com | https://github.com/hville/atto-store.git | license:MIT */\" ./module.js",
+    "build:main": "rollup -o ./index.js -f cjs --banner \"/* hugov@runbox.com | https://github.com/hville/attostore.git | license:MIT */\" ./module.js",
+    "build:browser": "rollup -o ./browser.js -f iife -n attostore --banner \"/* hugov@runbox.com | https://github.com/hville/attostore.git | license:MIT */\" ./module.js",
     "build": "npm run build:main & npm run build:browser",
     "prepublishOnly": "npm test & npm run build:browser",
     "gzip": "node -e \"fs.writeFileSync(process.argv[2], zlib.gzipSync(fs.readFileSync(process.argv[1])))\"",
@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hville/atto-store.git"
+    "url": "https://github.com/hville/attostore.git"
   },
   "private": false,
   "license": "MIT",

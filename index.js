@@ -1,4 +1,4 @@
-/* hugov@runbox.com | https://github.com/hville/atto-store.git | license:MIT */
+/* hugov@runbox.com | https://github.com/hville/attostore.git | license:MIT */
 'use strict';
 
 function on(typ, fcn, ctx) {
@@ -185,6 +185,7 @@ function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
 
+//import {reduceTree, reducePath} from './reduce'
 function Store(initValue) {
 	this.state = initValue || {};
 	this.event = new Event;
@@ -194,6 +195,8 @@ Store.prototype.set = function(keys, val, ondone) {
 	setTimeout(set, 0, this, keys, val, ondone);
 	return this
 };
+
+//TODO patch: set all, only fire if good
 
 function set(root, keys, value, ondone) {
 	var last = root.state,
