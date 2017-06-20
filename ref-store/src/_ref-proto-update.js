@@ -10,6 +10,16 @@ export function set(data) {
 	return this
 }
 
+export function _setKey(key, val) { //self down to root
+	var data = this.kin._setKey(key, val)
+
+	var last = this.data
+	this.data = data
+	var kin = this.kin
+	if (kin) kin._set(setKey(kin.data, this.key, data))
+	this._fire(last)
+}
+
 export function _set(data) { //self down to root
 	var last = this.data
 	this.data = data

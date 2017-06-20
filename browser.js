@@ -2,146 +2,61 @@
 var attoStore = (function () {
 'use strict';
 
-/**
- * @param {!Array|string} path
- * @param {!Array} [root]
- * @returns {!Array}
- */
-function getKeys(path, root) {
-	var keys = root || [];
-	return !path ? keys : keys.concat(Array.isArray(path) ? path : path.split('/'))
+function on(typ, fcn, ctx) {
+	var evts = this.root.events,
+			leaf = setLeaf(evts.dtree, this.keys),
+			list = evts[typ].get(leaf),
+			evtO = {f: fcn, c:ctx||null};
+	if (!list) evts[typ].set(leaf, [evtO]);
+	else if (indexOfEvt(list, fcn, ctx) === -1) list.push(evtO);
+	return this
 }
 
-/**
- * @constructor
- * @param {!Object} root
- * @param {!Array} keys
- */
-function Ref(root, keys) {
-	//props: data, last, root, keys, path
-	this.root = root;
-	this.keys = keys;
-}
-
-Ref.prototype = {
-
-	get path() { return this.keys.join('/') },
-
-	set: function(val) {
-		this.root.set(this.keys, val);
-		return this
-	},
-
-	ref: function(path) {
-		return !path ? this : new Ref(this.root, getKeys(path, this.keys))
-	},
-
-	on: function(evt, fcn, ctx) {
-		this.root.events.on(evt, this.keys, fcn, ctx||this, 0);
-		return this
-	},
-
-	off: function(evt, fcn, ctx) {
-		this.root.events.off(evt, this.keys, fcn, ctx||this, 0);
-		return this
-	},
-
-	once: function(evt, fcn, ctx) {
-		this.root.events.once(evt, this.keys, fcn, ctx||this, 0);
-		return this
-	}
-};
-
-function get(obj, key) {
-	if (typeof obj === 'object') return obj[key]
-}
-
-function reduce(source, callback, result, context) {
-	var ctx = context || this;
-	if (Array.isArray(source)) for (var i=0; i<source.length; ++i) {
-		result = callback.call(ctx, result, source[i], i, source);
-	}
-	else for (var j=0, ks=Object.keys(source); j<ks.length; ++j) {
-		result = callback.call(ctx, result, source[ks[j]], ks[j], source);
-	}
-	return result
-}
-
-/**
- * @constructor
- */
-function Events() {
-	//add, mod, del, val
-	this.evts = [];
-	this.kids = {};
-}
-
-Events.prototype = {
-	constructor: Events,
-
-
-	on: function(etyp, keys, fcn, ctx, pos) {
-		if (keys.length === (pos||0)) {
-			// only add if it does not exist
-			if (indexOfEvt(this.evts, fcn, ctx) === -1) this.evts.push({f: fcn, c:ctx||null});
-		}
-		else {
-			var kids = this.kids;
-			if (!kids[keys[pos]]) kids[keys[pos]] = new Events;
-			kids[keys[pos]].on(etyp, keys, fcn, ctx, (pos||0)+1);
-		}
-	},
-
-	off: function(etyp, keys, fcn, ctx, pos) {
-		if (keys.length === (pos||0)) {
-			var idx = indexOfEvt(this.evts, fcn, ctx);
-			if (idx !== -1) this.evts.splice(idx, 1);
-		}
-		else {
-			var kid = this.kids[keys[pos]];
-			if (kid) {
-				kid.off(keys, fcn, ctx, (pos||0)+1);
-				if (!kid.evts.length && !Object.keys(kid.kids).length) delete this.kids[keys[pos]];
-			}
-		}
-	},
-
-	once: function(etyp, keys, fcn, ctx) {
-		function wrapped(data, last, ks) {
-			this.off(etyp, keys, wrapped, this, 0);
-			fcn.call(ctx || this, data, last, ks);
-		}
-		return this.on(etyp, keys, wrapped, this, 0)
-	},
-
-	fire: function(data, last, keys) {
-		var evts = this.evts;
-
-		// collect changes
-		var changes = keys.length ? [keys[0]]
-		: (last && data) ? reduce(data, added, reduce(last, changed, [], data), last)
-		: last && typeof last === 'object' ? Object.keys(last)
-		: data && typeof data === 'object' ? Object.keys(data)
-		: [];
-
-		// fire self
-		for (var i=0; i<evts.length; ++i) evts[i].f.call(evts[i].c, data, last, changes);
-		// fire kids
-		for (var j=0; j<changes.length; ++j) {
-			var kid = this.kids[changes[j]];
-			if (kid) kid.fire(get(data, changes[j]), get(last, changes[j]), keys.slice(1));
+function	off(typ, fcn, ctx) {
+	var evts = this.root.events,
+			leaf = getLeaf(evts.dtree, this.keys),
+			list = leaf && evts[typ].get(leaf);
+	if (list) {
+		var idx = indexOfEvt(list, fcn, ctx);
+		if (idx !== -1) list.splice(idx, 1);
+		if (!list.length) {
+			evts[typ].remove(leaf);
+			delLeaf(evts.dtree, this.keys, 0, evts.child, evts.value);
 		}
 	}
-};
+	return this
+}
 
-function changed(r,v,k) {
-	if (this[k] !== v) r.push(k);
-	return r
+function once(etyp, fcn, ctx) {
+	function wrapped(data, last, ks) {
+		this.off(etyp, wrapped, this);
+		fcn.call(ctx || this, data, last, ks);
+	}
+	return this.on(etyp, wrapped, this)
 }
-function added(r,v,k) {
-	if (this[k] === undefined) r.push(k);
-	return r
+
+function getLeaf(trie, keys) {
+	for (var i=0, leaf=trie; i<keys.length; ++i) {
+		if (!(leaf = leaf[keys[i]])) return
+	}
+	return leaf
 }
+
+function setLeaf(trie, keys) {
+	for (var i=0, leaf=trie; i<keys.length; ++i) {
+		leaf = leaf[keys[i]] || (leaf[keys[i]] = Object.create(null));
+	}
+	return leaf
+}
+
+function delLeaf(trie, keys, step, mapC, mapV) {
+	if (step < keys.length) {
+		if (!delLeaf(trie[keys[step]], keys, step+1, mapC, mapV)) return false
+		delete trie[keys[step]];
+	}
+	return !Object.keys(trie).length && !mapC.get(trie) && !mapV.get(trie)
+}
+
 function indexOfEvt(lst, fcn, ctx) {
 	for (var i=0; i<lst.length; ++i) if (lst[i].f === fcn && lst[i].c === ctx) return i
 	return -1
@@ -155,6 +70,10 @@ function indexOfEvt(lst, fcn, ctx) {
 function cType(v) {
 	//null, String, Boolean, Number, Object, Array
 	return v == null ? v : v.constructor || Object
+}
+
+function isObj(v) {
+	return typeof v === 'object'
 }
 
 /**
@@ -182,115 +101,192 @@ function isEqual(obj, ref) {
 	else return obj === ref
 }
 
-/**
- * @constructor
- * @param {*} initValue
- */
-function Store(initValue) {
-	//props: data, last, root, keys, path
-	this.events = new Events;
-	this.data = initValue == null ? null : initValue;
-	this.last = null;
-	this.error = '';
+//TODO g(a,b) vs o(a)?a[b]:void 0
+function getKey(obj, key) {
+	if (isObj(obj)) return obj[key]
 }
 
-Store.prototype = {
-	constructor: Store,
+function set(val) {
+	var keys = this.keys,
+			root = this.root,
+			last = root.state,
+			evts = root.event;
+	root.error = '';
+	var data = setUp(evts.dtree, last, keys, val, 0, evts.child);
+	if (data instanceof Error) root.error = data.message;
+	else if (data !== last) {
+		root.state = data;
+		fireV(evts.dtree, data, last, evts.value); //TODO manualy fire path keys instead of all refs
+	}
+	return root.error
+}
 
-	/**
-	 * @param {!Array|string} path
-	 * @param {*} value
-	 * @return {!Object}
-	 */
-	set: function(path, value) {
-		var keys = getKeys(path),
-				data = this.data,
-				newD = keys.length ? this._setUp(data, keys, value, 0) : isEqual(data, value) ? data
-			: value;
-		if (newD !== this.data && newD !== undefined) {
-			this.error = '';
-			this.last = data;
-			this.data = newD;
-			this.events.fire(newD, this.last, keys);
+/**
+ * @param {Object} ref
+ * @param {*} obj
+ * @param {!Array} keys
+ * @param {*} val
+ * @param {number} idx
+ * @param {!WeakMap} evtC
+ * @return {*}
+ */
+function setUp(ref, obj, keys, val, idx, evtC) {
+	if (idx === keys.length) {
+		if (isEqual(obj, val)) return obj
+		fireC(ref, val, obj, evtC);
+		return val
+	}
+	if (!isObj(obj)) return Error('invalid path ' + keys.join('/'))
+	var key = keys[idx],
+			oldK = obj[key],
+			newK = setUp(ref && ref[key], oldK, keys, val, idx+1, evtC);
+	if (newK === oldK) return obj
+	var res = Array.isArray(obj) ? aSet(obj, key, newK) : oSet(obj, key, newK); //TODO obj type annotation
+	if (!(res instanceof Error)) fireList(evtC.get(ref), res, obj, key);
+	return res
+}
+
+/**
+ * @param {!Object} ref
+ * @param {*} val
+ * @param {*} old
+ * @param {!WeakMap} evtC
+ * @return {void}
+ */
+function fireC(ref, val, old, evtC) {
+	if (val !== old) {
+		// fire children first
+		for (var i=0, ks=Object.keys(ref); i<ks.length; ++i) {
+			var k = ks[i];
+			fireC(ref[k], getKey(val, k), getKey(old, k), evtC);
 		}
-		return this
-	},
+		// fire parent after
+		var evts = evtC.get(ref);
+		if (evts) {
+			if (isObj(val)) {
+				if (isObj(old)) {
+					fireKeys(val, '!=', evts, val, old);
+					fireKeys(old, '!A', evts, val, old);
+				}
+				else fireKeys(val, '', evts, val, old);
+			}
+			else if (isObj(old)) fireKeys(old, '', evts, val, old);
+		}
+	}
+}
+
+/**
+ * @param {!Object} ref
+ * @param {*} val
+ * @param {*} old
+ * @param {!WeakMap} evtV
+ * @return {void}
+ */
+function fireV(ref, val, old, evtV) {
+	if (val !== old) {
+		// fire parent first
+		var evts = evtV.get(ref);
+		if (evts) fireList(evts, val, old);
+		// fire children after
+		for (var i=0, ks=Object.keys(ref); i<ks.length; ++i) {
+			var k = ks[i];
+			fireV(ref[k], getKey(val, k), getKey(old, k), evtV);
+		}
+	}
+}
+
+/**
+ * @param {!Array} arr
+ * @param {number} key
+ * @param {*} val
+ * @return {!Array|Error}
+ */
+function aSet(arr, key, val) {
+	var tgt = arr.slice();
+	if (val === undefined) {
+		if (key !== arr.length-1) return Error('only the last array item can be deleted')
+		tgt.length = key;
+		return tgt
+	}
+	if (key <= arr.length) {
+		tgt[key] = val;
+		return tgt
+	}
+	return Error('invalid array index: ' + key)
+}
+
+/**
+ * @param {!Object} obj
+ * @param {string} key
+ * @param {*} val
+ * @return {!Object}
+ */
+function oSet(obj, key, val) {
+	for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
+	if (val !== undefined) res[key] = val;
+	return res
+}
+
+/**
+ * @param {Array} list
+ * @param {*} data
+ * @param {*} last
+ * @param {string|number} [key]
+ * @return {void}
+ */
+function fireList(list, data, last, key) {
+	if (list) for (var i=0; i<list.length; ++i) list[i].f.call(list[i].c, data, last, key);
+}
+
+
+function fireKeys(src, tst, evts, val, old) {
+	for (var i=0, ks=Object.keys(src); i<ks.length; ++i) {
+		var k = ks[i],
+				cond = tst === '!=' ? val[k] !== old[k] : tst === '!A' ? val[k] === undefined : true;
+		if(cond) fireList(evts, val, old, k);
+
+	}
+}
+
+/**
+ * @constructor
+ * @param {!Object} root
+ * @param {!Array} keys
+ */
+function Ref(root, keys) {
+	//props: data, last, root, keys, path
+	this.root = root;
+	this.keys = keys;
+}
+
+Ref.prototype = {
+	get path() { return this.keys.join('/') },
 
 	/**
 	 * @param {Array|string} [path]
 	 * @return {!Object}
 	 */
 	ref: function(path) {
-		return new Ref(this, getKeys(path))
+		return !path ? this : new Ref(this.root, !path ? [] : Array.isArray(path) ? path : path.split('/'))
 	},
 
-	/**
-	 * @param {!Array} arr
-	 * @param {number} key
-	 * @param {*} val
-	 * @return {!Array}
-	 */
-	_aSet: function(arr, key, val) {
-		var tgt = arr.slice();
-		if (val === undefined) {
-			if (key !== arr.length-1) {
-				this.error = 'only the last array item can be deleted';
-				return arr
-			}
-			tgt.length = key;
-			return tgt
-		}
-		if (key <= arr.length) {
-			tgt[key] = val;
-			return tgt
-		}
-		this.error = 'invalid array index: ' + key;
-		return arr
-	},
-
-	/**
-	 * @param {!Object} obj
-	 * @param {string} key
-	 * @param {*} val
-	 * @return {!Object}
-	 */
-	_oSet: function(obj, key, val) {
-		for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
-		if (val !== undefined) res[key] = val;
-		return res
-	},
-
-	/**
-	 * @param {*} leaf
-	 * @param {!Array} keys
-	 * @param {*} data
-	 * @param {number} step
-	 * @return {*}
-	 */
-	_setUp: function(leaf, keys, data, step) {
-		if (typeof leaf !== 'object') {
-			this.error = 'invalid path ' + keys.join('/') + ' at ' + step;
-			return leaf
-		}
-
-		var key = keys[step],
-				val = data;
-
-		if (step === keys.length - 1) {
-			if (isEqual(leaf[key], data)) return leaf
-		}
-		else {
-			val = this._setUp(leaf[key], keys, data, step + 1);
-			if (leaf[key] === val) return leaf
-		}
-
-		return Array.isArray(leaf) ? this._aSet(leaf, key, val) : this._oSet(leaf, key, val)
-	}
+	set: set,
+	on: on,
+	off: off,
+	once: once
 };
 
 // @ts-check
-function db(value) {
-	return (new Store(value)).ref()
+function db(initValue) {
+	return new Ref({
+		state: initValue || {},
+		error: '',
+		event: {
+			dtree: Object.create(null),
+			child: new WeakMap,
+			value: new WeakMap,
+		}
+	}, [])
 }
 
 return db;
