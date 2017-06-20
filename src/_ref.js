@@ -1,5 +1,4 @@
 import {on, off, once} from './_ref-event'
-import {set} from './_ref-value'
 import {pathKeys} from './path-keys'
 
 /**
@@ -25,7 +24,11 @@ Ref.prototype = {
 		return new Ref(this._db, this.keys.concat(pathKeys(path)))
 	},
 
-	set: set,
+	set: function(val, ondone) {
+		this._db.set(this.keys, val, ondone)
+		return this
+	},
+
 	on: on,
 	off: off,
 	once: once

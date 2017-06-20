@@ -24,6 +24,6 @@ export function reduceTree(obj, onKid, onTip, onKin, res, ctx) { //cb(this:ctx, 
 		res = reduceTree(kid, onKid, onTip, onKin, res, ctx)
 		if (onKin) res = onKin.call(ctx, res, kid, key, obj)
 	}
-	return onTip ? onTip(res, obj) : res
+	else if (onTip) res = onTip(res, obj)
+	return res
 }
-
