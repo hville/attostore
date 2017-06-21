@@ -1,10 +1,10 @@
-/* hugov@runbox.com | https://github.com/hville/atto-store.git | license:MIT */
-var attoStore = (function () {
+/* hugov@runbox.com | https://github.com/hville/attostore.git | license:MIT */
+var attostore = (function () {
 'use strict';
 
 function on(typ, fcn, ctx) {
-	var evts = this.root.events,
-			leaf = setLeaf(evts.dtree, this.keys),
+	var evts = this._db.event,
+			leaf = evts.setLeaf(this.keys),
 			list = evts[typ].get(leaf),
 			evtO = {f: fcn, c:ctx||null};
 	if (!list) evts[typ].set(leaf, [evtO]);
@@ -13,15 +13,15 @@ function on(typ, fcn, ctx) {
 }
 
 function	off(typ, fcn, ctx) {
-	var evts = this.root.events,
-			leaf = getLeaf(evts.dtree, this.keys),
+	var evts = this._db.event,
+			leaf = evts.getLeaf(this.keys),
 			list = leaf && evts[typ].get(leaf);
 	if (list) {
 		var idx = indexOfEvt(list, fcn, ctx);
 		if (idx !== -1) list.splice(idx, 1);
 		if (!list.length) {
-			evts[typ].remove(leaf);
-			delLeaf(evts.dtree, this.keys, 0, evts.child, evts.value);
+			evts[typ].delete(leaf);
+			evts.delLeaf(this.keys);
 		}
 	}
 	return this
@@ -33,28 +33,6 @@ function once(etyp, fcn, ctx) {
 		fcn.call(ctx || this, data, last, ks);
 	}
 	return this.on(etyp, wrapped, this)
-}
-
-function getLeaf(trie, keys) {
-	for (var i=0, leaf=trie; i<keys.length; ++i) {
-		if (!(leaf = leaf[keys[i]])) return
-	}
-	return leaf
-}
-
-function setLeaf(trie, keys) {
-	for (var i=0, leaf=trie; i<keys.length; ++i) {
-		leaf = leaf[keys[i]] || (leaf[keys[i]] = Object.create(null));
-	}
-	return leaf
-}
-
-function delLeaf(trie, keys, step, mapC, mapV) {
-	if (step < keys.length) {
-		if (!delLeaf(trie[keys[step]], keys, step+1, mapC, mapV)) return false
-		delete trie[keys[step]];
-	}
-	return !Object.keys(trie).length && !mapC.get(trie) && !mapV.get(trie)
 }
 
 function indexOfEvt(lst, fcn, ctx) {
@@ -74,6 +52,108 @@ function cType(v) {
 
 function isObj(v) {
 	return typeof v === 'object'
+}
+
+function pathKeys(path) {
+	return Array.isArray(path) ? path : (path && path.split) ? path.split('/') : cType(path) === Number ? [path] : []
+}
+
+/**
+ * @constructor
+ * @param {!Object} root
+ * @param {!Array} keys
+ */
+function Ref(root, keys) {
+	this._db = root;
+	this.keys = keys;
+}
+
+Ref.prototype = {
+	get path() { return this.keys.join('/') },
+	get parent() { return new Ref(this._db, this.keys.slice(0,-1)) },
+	get root() { return new Ref(this._db, []) },
+
+	/**
+	 * @param {Array|string} [path]
+	 * @return {!Object}
+	 */
+	ref: function(path) {
+		return new Ref(this._db, this.keys.concat(pathKeys(path)))
+	},
+
+	set: function(val, ondone) {
+		this._db.set(this.keys, val, ondone);
+		return this
+	},
+
+	on: on,
+	off: off,
+	once: once
+};
+
+function reducePath(keys, obj, onKid, onTip, onKin, res, ctx) { //cb(this:ctx, res, kid, key, kin)
+	var kin = obj,
+			kids = [];
+	for (var i=0; i<keys.length; ++i) {
+		if (!isObj(kin)) return Error('invalid path')
+		var key = keys[i];
+		if (onKid) res = onKid.call(ctx, res, kin[key], key, kin);
+		kin = kids[i] = kin[key];
+	}
+	if (onTip) res = onTip.call(ctx, res, kin);
+	while(i--) {
+		if (onKin) res = onKin.call(ctx, res, kids[i], keys[i], i ? kids[i-1] : obj);
+	}
+	return res
+}
+
+function reduceTree(obj, onKid, onTip, onKin, res, ctx) { //cb(this:ctx, res, kid, key, kin)
+	if (isObj(obj)) for (var i=0, ks=Object.keys(obj); i<ks.length; ++i) {
+		var key = ks[i],
+				kid = obj[key];
+		if (onKid) res = onKid.call(ctx, res, kid, key, obj);
+		res = reduceTree(kid, onKid, onTip, onKin, res, ctx);
+		if (onKin) res = onKin.call(ctx, res, kid, key, obj);
+	}
+	else if (onTip) res = onTip(res, obj);
+	return res
+}
+
+function Event() {
+	this.dtree = Object.create(null);
+	this.child = new WeakMap;
+	this.value = new WeakMap;
+}
+Event.prototype = {
+
+	setLeaf: function(keys) {
+		for (var i=0, leaf=this.dtree; i<keys.length; ++i) {
+			leaf = leaf[keys[i]] || (leaf[keys[i]] = Object.create(null));
+		}
+		return leaf
+	},
+
+	getLeaf: function(keys) {
+		for (var i=0, leaf=this.dtree; i<keys.length; ++i) {
+			if (!(leaf = leaf[keys[i]])) return
+		}
+		return leaf
+	},
+
+	delLeaf: function(keys) {
+		reducePath(keys, this.dtree, null, onTip, delLeaf, null, this);
+	}
+};
+
+function onTip(res, tip) {
+	return reduceTree(tip, null, null, delLeaf, this)
+}
+
+function delLeaf(res, kid, key, kin) {
+	var eVals = res.value.get(kid),
+			eKids = res.child.get(kid);
+	if (!Object.keys(kid).length && !(eVals && eVals.length) && !(eKids && eKids.length)) delete kin[key];
+	return res
 }
 
 /**
@@ -106,19 +186,31 @@ function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
 
-function set(val) {
-	var keys = this.keys,
-			root = this.root,
-			last = root.state,
+//import {reduceTree, reducePath} from './reduce'
+function Store(initValue) {
+	this.state = initValue || {};
+	this.event = new Event;
+}
+
+Store.prototype.set = function(keys, val, ondone) {
+	setTimeout(set, 0, this, keys, val, ondone);
+	return this
+};
+
+//TODO patch: set all, only fire if good
+
+function set(root, keys, value, ondone) {
+	var last = root.state,
 			evts = root.event;
-	root.error = '';
-	var data = setUp(evts.dtree, last, keys, val, 0, evts.child);
-	if (data instanceof Error) root.error = data.message;
+	var data = setUp(evts.dtree, last, keys, value, 0, evts.child);
+	if (data instanceof Error) {
+		if (ondone) ondone(data.message);
+	}
 	else if (data !== last) {
 		root.state = data;
 		fireV(evts.dtree, data, last, evts.value); //TODO manualy fire path keys instead of all refs
+		if (ondone) ondone(null, data);
 	}
-	return root.error
 }
 
 /**
@@ -133,7 +225,7 @@ function set(val) {
 function setUp(ref, obj, keys, val, idx, evtC) {
 	if (idx === keys.length) {
 		if (isEqual(obj, val)) return obj
-		fireC(ref, val, obj, evtC);
+		if (ref) fireC(ref, val, obj, evtC);
 		return val
 	}
 	if (!isObj(obj)) return Error('invalid path ' + keys.join('/'))
@@ -158,7 +250,7 @@ function fireC(ref, val, old, evtC) {
 		// fire children first
 		for (var i=0, ks=Object.keys(ref); i<ks.length; ++i) {
 			var k = ks[i];
-			fireC(ref[k], getKey(val, k), getKey(old, k), evtC);
+			fireC(ref[k], getKey(val, k), getKey(old, k), evtC); //TODO typeDef ref[k] is an Object
 		}
 		// fire parent after
 		var evts = evtC.get(ref);
@@ -248,45 +340,9 @@ function fireKeys(src, tst, evts, val, old) {
 	}
 }
 
-/**
- * @constructor
- * @param {!Object} root
- * @param {!Array} keys
- */
-function Ref(root, keys) {
-	//props: data, last, root, keys, path
-	this.root = root;
-	this.keys = keys;
-}
-
-Ref.prototype = {
-	get path() { return this.keys.join('/') },
-
-	/**
-	 * @param {Array|string} [path]
-	 * @return {!Object}
-	 */
-	ref: function(path) {
-		return !path ? this : new Ref(this.root, !path ? [] : Array.isArray(path) ? path : path.split('/'))
-	},
-
-	set: set,
-	on: on,
-	off: off,
-	once: once
-};
-
 // @ts-check
 function db(initValue) {
-	return new Ref({
-		state: initValue || {},
-		error: '',
-		event: {
-			dtree: Object.create(null),
-			child: new WeakMap,
-			value: new WeakMap,
-		}
-	}, [])
+	return new Ref(new Store(initValue), [])
 }
 
 return db;

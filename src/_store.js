@@ -14,12 +14,12 @@ Store.prototype.set = function(keys, val, ondone) {
 	return this
 }
 
-//TODO patch: set all, only fire if good
+//TODO patch: set all, only fire if ALL good
 
 function set(root, keys, value, ondone) {
 	var last = root.state,
 			evts = root.event
-	var data = setUp(evts.dtree, last, keys, value, 0, evts.child)
+	var data = setUp(evts.dtree, last, keys, value, 0, evts.child) //TODO child event into instance
 	if (data instanceof Error) {
 		if (ondone) ondone(data.message)
 	}
@@ -62,7 +62,7 @@ function setUp(ref, obj, keys, val, idx, evtC) {
  * @param {!WeakMap} evtC
  * @return {void}
  */
-function fireC(ref, val, old, evtC) {
+function fireC(ref, val, old, evtC) { //TODO move to Event
 	if (val !== old) {
 		// fire children first
 		for (var i=0, ks=Object.keys(ref); i<ks.length; ++i) {

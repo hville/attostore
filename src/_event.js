@@ -1,5 +1,6 @@
 import {reduceTree, reducePath} from './reduce'
 
+//TODO change to recursive {child:[], value:[], dtree: Map(''+k => event}}
 export function Event() {
 	this.dtree = Object.create(null)
 	this.child = new WeakMap
