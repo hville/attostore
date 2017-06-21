@@ -1,3 +1,4 @@
+// @ts-check
 var DB = require( '../index' ),
 		t = require('cotest')
 
@@ -12,13 +13,13 @@ function checkValue(d,o) {
 	this.push(o.k.toUpperCase())
 }
 
-t('db - ref', function(end) {
-	var db = DB({k: 'aa', aa:{k: 'bb', bb:{}}}),
+t('db - callback', function(end) {
+	var db = DB({k: 'aa', aa:{k: 'bb', bb:{}}}).ref(),
 			ra = db.ref('aa'),
 			rb = db.ref(['aa', 'bb']),
 			rc = ra.ref('bb/cc'),
 			rd = rc.ref(['dd']),
-			re = db.ref('aa/bb/cc/dd/ee'),
+			re = db.ref('aa/bb/cc/dd/e'),
 			changed = []
 
 	db.on('child', addChanges, changed)
@@ -31,19 +32,33 @@ t('db - ref', function(end) {
 	ra.once('value', checkValue, changed)
 	db.on('value', checkValue, changed)
 
-	rb.set({cc:{dd:{e:'e'}}}, function(err, res) {
+	rb.set({cc:{dd:{e:'e'}}}, function(err) {
 		t('!', err)
-		t('{===}', res, {k: 'aa', aa:{k: 'bb', bb:{cc:{dd:{e:'e'}}}}})
-		t('{===}', changed, ['e', 'dd', 'cc', 'bb', 'aa', 'AA', 'BB'])
+		t('{===}', db._db.state, {k: 'aa', aa:{k: 'bb', bb:{cc:{dd:{e:'e'}}}}})
+		t('{===}', changed, ['aa', 'bb', 'cc', 'dd', 'e', 'BB', 'AA'])//
 		rd.off('child', addChanges, changed)
 		re.off('child', addChanges, changed)
 		changed.length = 0
-		rb.set({cc:{d:'d'}}, function(e,r) {
+		rb.set({cc:{d:'d'}}, function(e) {
 			t('!', e)
-			t('{===}', r, {k: 'aa', aa:{k: 'bb', bb:{cc:{d:'d'}}}})
-			t('{===}', changed, ['cc', 'aa', 'AA'])
-			t('{==}', db._db.event.dtree, {aa:{bb:{}}}, 'dereferencing dtree')
+			t('{===}', db._db.state, {k: 'aa', aa:{k: 'bb', bb:{cc:{d:'d'}}}})
+			t('{===}', changed, ['aa', 'AA'])
+			t('{==}', db._db._emit.get(['aa', 'bb']).dtree, {}, 'dereferencing dtree')
 			end()
 		})
+	})
+})
+
+t('db - promise', function(end) {
+	var db = DB().ref(),
+			changed = []
+	db.ref('').on('child', addChanges, changed)
+	db.ref('aa/bb').on('child', addChanges, changed)
+	db.ref('aa').on('child', addChanges, changed)
+
+	db.set({a:'a', aa:{bb:{c:'c'}}, b:'b'}).then(function() {
+		t('{===}', db._db.state, {a:'a', aa:{bb:{c:'c'}}, b:'b'})
+		t('{===}', changed, ['aa', 'bb'])
+		end()
 	})
 })

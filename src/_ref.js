@@ -17,6 +17,7 @@ Ref.prototype = {
 	get root() { return new Ref(this._db, []) },
 
 	/**
+	 * @memberof Ref
 	 * @param {Array|string} [path]
 	 * @return {!Object}
 	 */
@@ -25,8 +26,11 @@ Ref.prototype = {
 	},
 
 	set: function(val, ondone) {
-		this._db.set(this.keys, val, ondone)
-		return this
+		return this._db.patch([{k:this.keys, v:val}], ondone)
+	},
+
+	del: function(ondone) {
+		return this._db.patch([{k:this.keys}], ondone)
 	},
 
 	on: on,

@@ -1,12 +1,13 @@
 {
   "name": "attostore",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "async json data store",
   "keywords": [
     "json",
     "store",
     "async",
-    "cursor"
+    "cursor",
+    "in-memory"
   ],
   "author": "Hugo Villeneuve",
   "main": "./index.js",
