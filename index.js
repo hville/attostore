@@ -72,7 +72,7 @@ function indexOf(arr, fcn, ctx) {
  * @constructor
  */
 function Trie() {
-	this.dtree = Object.create(null);
+	this._kids = new Map;
 	this._evts = new Map;
 }
 Trie.prototype = {
@@ -85,37 +85,49 @@ Trie.prototype = {
 	set: function(key) {
 		return Array.isArray(key) ? key.reduce(set, this) : set(this, key)
 	},
+
 	del: function(key) {
 		del(this, Array.isArray(key) ? key : [key], 0);
 	},
-	fire: function(val, old) { //TODO take optional keys for direct path
-		if (isObj(val) || isObj(old)) for (var i=0, ks=Object.keys(this.dtree); i<ks.length; ++i) {
-			var k = ks[i],
-					v = getKey(val, k),
-					o = getKey(old, k);
-			if (v !== o) {
-				Emit.prototype.fire.call(this, 'child', val, old, k);
-				this.get(k).fire(v,o);
+
+	fire: function(val, old) {
+		if (val !== old) {
+			if (this._evts.has('child')) {
+				var valObj = isObj(val),
+						oldObj = isObj(old);
+				if (valObj) for (var i=0, kvs=Object.keys(val); i<kvs.length; ++i) {
+					if (!oldObj || (val[kvs[i]] !== old[kvs[i]])) Emit.prototype.fire.call(this, 'child', val, old, kvs[i]);
+				}
+				if (oldObj) for (var j=0, kos=Object.keys(old); j<kos.length; ++j) {
+					if (!valObj || val[kos[j]] === undefined) Emit.prototype.fire.call(this, 'child', val, old, kos[j]);
+				}
 			}
+			if (valObj || oldObj) this._kids.forEach(function(kid, key) {
+				var v = getKey(val, key),
+						o = getKey(old, key);
+				if (v !== o) kid.fire(v,o);
+			});
+			Emit.prototype.fire.call(this, 'value', val, old);
 		}
-		Emit.prototype.fire.call(this, 'value', val, old);
 	}
 };
 
-function get(evt, key) {
-	if (evt) return evt.dtree[key]
+function get(trie, key) {
+	return trie && trie._kids.get(key)
 }
 
-function set(evt, key) {
-	return evt.dtree[key] || (evt.dtree[key] = new Trie)
+function set(trie, key) {
+	if (!trie._kids.has(key)) trie._kids.set(key, new Trie);
+	return trie._kids.get(key)
 }
 
 function del(trie, keys, idx) {
 	var key = keys[idx++],
-			kid = trie.get(key),
-			tip = (idx === keys.length) || del(kid, keys, idx);
-	if (!tip || (Object.keys(kid.dtree).length + kid._evts.size)) return false
-	return delete trie.dtree[key]
+			kid = trie._kids.get(key);
+	if (kid) {
+		if (idx !== keys.length) del(kid, keys, idx);
+		if (!kid._kids.size && !kid._evts.size) trie._kids.delete(key);
+	}
 }
 
 /**
@@ -183,6 +195,7 @@ Ref.prototype = {
 		this._db._trie.set(this.keys).on(typ, fcn, ctx);
 		return this
 	},
+
 	off: function(typ, fcn, ctx) {
 		var root = this._db._trie,
 				trie = root.get(this.keys);

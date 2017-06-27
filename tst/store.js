@@ -43,7 +43,7 @@ t('db - callback', function(end) {
 			t('!', e)
 			t('{===}', db._db.state, {k: 'aa', aa:{k: 'bb', bb:{cc:{d:'d'}}}})
 			t('{===}', changed, ['aa', 'AA'])
-			t('{==}', db._db._trie.get(['aa', 'bb']).dtree, {}, 'dereferencing dtree')
+			t('===', db._db._trie.get(['aa', 'bb'])._kids.size, 0, 'dereferencing dtree')
 			end()
 		})
 	})
@@ -58,7 +58,7 @@ t('db - promise', function(end) {
 
 	db.set({a:'a', aa:{bb:{c:'c'}}, b:'b'}).then(function() {
 		t('{===}', db._db.state, {a:'a', aa:{bb:{c:'c'}}, b:'b'})
-		t('{===}', changed, ['aa', 'bb'])
+		t('{===}', changed, ['a', 'aa', 'b', 'bb', 'c'])
 		end()
 	})
 })
