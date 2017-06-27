@@ -1,5 +1,6 @@
-import {on, off, once} from './_ref-event'
 import {pathKeys} from './path-keys'
+import {Emit} from './_emit'
+
 
 /**
  * @constructor
@@ -33,7 +34,19 @@ Ref.prototype = {
 		return this._db.patch([{k:this.keys}], ondone)
 	},
 
-	on: on,
-	off: off,
-	once: once
+	on: function(typ, fcn, ctx) {
+		this._db._trie.set(this.keys).on(typ, fcn, ctx)
+		return this
+	},
+
+	off: function(typ, fcn, ctx) {
+		var root = this._db._trie,
+				trie = root.get(this.keys)
+		if (trie) {
+			trie.off(typ, fcn, ctx)
+			if (!trie._evts.size) root.del(this.keys)
+		}
+		return this
+	},
+	once: Emit.prototype.once
 }

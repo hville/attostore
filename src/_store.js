@@ -1,4 +1,4 @@
-import {Emit} from './_emit'
+import {Trie} from './_trie'
 import {isEqual} from './is-eq'
 import {isObj} from './type'
 import {pathKeys} from './path-keys'
@@ -10,7 +10,7 @@ import {Ref} from './_ref'
  */
 export function Store(initValue) {
 	this.state = initValue || {}
-	this._emit = new Emit
+	this._trie = new Trie
 }
 
 Store.prototype = {
@@ -57,7 +57,7 @@ function patchSync(root, acts, done) {
 	}
 	if (newV !== oldV) {
 		root.state = newV
-		root._emit.fire(newV, oldV)
+		root._trie.fire(newV, oldV)
 		done(null, acts)
 	}
 	else done()

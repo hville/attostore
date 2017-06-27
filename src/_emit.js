@@ -1,66 +1,47 @@
-import {isObj} from './type'
-import {getKey} from './get'
-
 /**
  * @constructor
  */
 export function Emit() {
-	this.dtree = Object.create(null)
-	this.child = []
-	this.value = []
+	this._evts = new Map
 }
-Emit.prototype = {
-	get: function(key) {
-		return Array.isArray(key) ? key.reduce(get, this) : get(this, key)
-	},
-	set: function(key) {
-		return Array.isArray(key) ? key.reduce(set, this) : set(this, key)
-	},
-	del: function(key) {
-		del(this, Array.isArray(key) ? key : [key], 0)
-	},
-	indexOf: function(typ, fcn, ctx) {
-		var list = this[typ]
-		if (list) for (var i=0; i<list.length; ++i) if (list[i].f === fcn && list[i].c === ctx) return i
-		return -1
-	},
-	fire: function(val, old) { //TODO take optional keys for direct path
-		if (isObj(val) || isObj(old)) for (var i=0, ks=Object.keys(this.dtree); i<ks.length; ++i) {
-			var k = ks[i],
-					v = getKey(val, k),
-					o = getKey(old, k)
-			if (v !== o) {
-				fire(this.child, val, old, k)
-				this.get(k).fire(v,o)
-			}
-		}
-		fire(this.value, val, old)
+
+Emit.prototype.on = function(typ, fcn, ctx) {
+	var list = 	this._evts.get(typ)
+	if (!list) this._evts.set(typ, list = [{f: fcn, c:ctx||null}])
+	else if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null})
+}
+
+Emit.prototype.off = function(typ, fcn, ctx) {
+	var arr = this._evts.get(typ),
+			idx = indexOf(arr, fcn, ctx)
+	if (idx !== -1) {
+		arr.splice(idx, 1)
+		if (!arr.length) this._evts.delete(typ)
 	}
 }
 
-function get(evt, key) {
-	if (evt) return evt.dtree[key]
-}
-
-function set(evt, key) {
-	return evt.dtree[key] || (evt.dtree[key] = new Emit)
-}
-
-function del(trie, keys, idx) {
-	var key = keys[idx++],
-			kid = trie.get(key),
-			tip = (idx === keys.length) || del(kid, keys, idx)
-	if (!tip || (Object.keys(kid.dtree).length + kid.child.length + kid.value.length)) return false
-	return delete trie.dtree[key]
+Emit.prototype.once = function(etyp, fcn, ctx) {
+	function wrapped(data, last, ks) {
+		this.off(etyp, wrapped, this)
+		fcn.call(ctx || this, data, last, ks)
+	}
+	return this.on(etyp, wrapped, this)
 }
 
 /**
- * @param {Array} list
- * @param {*} data
- * @param {*} last
- * @param {string|number} [key]
+ * @param {string} typ
+ * @param {*} [a0]
+ * @param {*} [a1]
+ * @param {*} [a2]
  * @return {void}
  */
-function fire(list, data, last, key) {
-	if (list) for (var i=0; i<list.length; ++i) list[i].f.call(list[i].c, data, last, key)
+Emit.prototype.fire = function(typ, a0, a1, a2) {
+	var list = 	this._evts.get(typ)
+	if (list) for (var i=0; i<list.length; ++i) list[i].f.call(list[i].c, a0, a1, a2)
+}
+
+
+function indexOf(arr, fcn, ctx) {
+	if (arr) for (var i=0; i<arr.length; ++i) if (arr[i].f === fcn && arr[i].c === ctx) return i
+	return -1
 }
