@@ -1,6 +1,6 @@
 // @ts-check
-import {Store} from './src/_store'
+import {Store} from './src/_store.1'
 
-export default function (initValue) {
-	return new Store(initValue)
+export default function () {
+	return new Store()
 }

@@ -9,5 +9,5 @@ export function cType(v) {
 }
 
 export function isObj(v) {
-	return typeof v === 'object'
+	return v && typeof v === 'object'
 }
