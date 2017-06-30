@@ -92,6 +92,7 @@ Trie.prototype.on = function(key, fcn, ctx) {
 	var leaf = set(this, pathKeys(key)),
 			list = leaf._fs;
 	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
+	return this
 };
 
 Trie.prototype.off = function(key, fcn, ctx) {
@@ -103,10 +104,18 @@ Trie.prototype.off = function(key, fcn, ctx) {
 		arr.splice(idx, 1);
 		if (!arr.length && !itm._ks.size) del(this, keys, 0);
 	}
+	return this
 };
 
 Trie.prototype.once = once;
 
+/**
+ * @param {*} val
+ * @param {*} old
+ * @param {string} [key]
+ * @param {Object|Array} [obj]
+ * @return {void}
+ */
 Trie.prototype.emit = function(val, old, key, obj) {
 	this._ks.forEach(function(kid, k) {
 		if (k === '*') {
@@ -177,7 +186,7 @@ function Ref(root, keys) {
 
 Ref.prototype = {
 	constructor: Ref,
-	get path() { return this._ks.join('/') },
+
 	get parent() { return new Ref(this._db, this._ks.slice(0,-1)) },
 	get root() { return new Ref(this._db, []) },
 
@@ -251,14 +260,17 @@ Store.prototype.patch = function(acts, done) {
 			newV = oldV;
 	for (var i=0; i<acts.length; ++i) {
 		newV = setPath(newV, acts[i].k, acts[i].v, 0);
-		if (newV instanceof Error) return done(newV)
+		if (newV instanceof Error) {
+			done(newV);
+			return
+		}
 	}
 	if (newV !== oldV) {
 		this.data = newV;
 		this.trie.emit(newV, oldV);
 		done(null, acts);
 	}
-	else done(null, []);
+	else done(null, null);
 };
 
 /**
@@ -269,7 +281,6 @@ Store.prototype.patch = function(acts, done) {
  * @return {*}
  */
 function setPath(obj, keys, val, idx) {
-
 	if (val instanceof Error) return val
 
 	// last key reached => close
