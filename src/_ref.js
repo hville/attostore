@@ -1,5 +1,7 @@
 import {pathKeys} from './path-keys'
-import {Emit} from './_emit'
+import {promisify} from './promisify'
+import {once} from './once'
+import {Trie} from './_trie'
 
 
 /**
@@ -9,44 +11,58 @@ import {Emit} from './_emit'
  */
 export function Ref(root, keys) {
 	this._db = root
-	this.keys = keys
+	this._ks = keys
 }
 
 Ref.prototype = {
-	get path() { return this.keys.join('/') },
-	get parent() { return new Ref(this._db, this.keys.slice(0,-1)) },
+	constructor: Ref,
+
+	get parent() { return new Ref(this._db, this._ks.slice(0,-1)) },
 	get root() { return new Ref(this._db, []) },
 
+	keys: function(path) {
+		return this._ks.concat(pathKeys(path))
+	},
 	/**
 	 * @memberof Ref
 	 * @param {Array|string} [path]
 	 * @return {!Object}
 	 */
 	ref: function(path) {
-		return new Ref(this._db, this.keys.concat(pathKeys(path)))
+		return new Ref(this._db, this.keys(path))
 	},
 
-	set: function(val, ondone) {
-		return this._db.patch([{k:this.keys, v:val}], ondone)
+	set: function(path, val, ondone) {
+		return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path), val], ondone)
 	},
 
-	del: function(ondone) {
-		return this._db.patch([{k:this.keys}], ondone)
+	del: function(path, ondone) {
+		return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path)], ondone)
 	},
 
-	on: function(typ, fcn, ctx) {
-		this._db._trie.set(this.keys).on(typ, fcn, ctx)
+	on: function(path, fcn, ctx) {
+		this._db.trie.on(this.keys(path), fcn, ctx)
 		return this
 	},
 
-	off: function(typ, fcn, ctx) {
-		var root = this._db._trie,
-				trie = root.get(this.keys)
-		if (trie) {
-			trie.off(typ, fcn, ctx)
-			if (!trie._evts.size) root.del(this.keys)
-		}
+	off: function(path, fcn, ctx) {
+		this._db.trie.off(this.keys(path), fcn, ctx)
 		return this
 	},
-	once: Emit.prototype.once
+
+	once: once,
+
+	query: function(transform) {
+		var query = new Trie,
+				last
+		this._db.trie.on(this._ks, function(v,k,n) {
+			var next = transform(v,k,n)
+			query.emit(next, last)
+		})
+		return query
+	}
+}
+
+function storeSet(src, key, val, cb) {
+	return src.patch([val === undefined ? {k:key} : {k:key, v:val}], cb)
 }

@@ -10,25 +10,24 @@
 import create from 'attostore'
 
 var store = create({
-  v: 'myInitValue',
-  c:{v: 'myNestedValue'}
+  a: 'myInitValue',
+  b:{c: 'myNestedValue'}
 })
 
-store.ref('c').on('child', function(val, old, key) {
-  console.log('key',key,'changed')
-})
-store.ref(['c', 'v']).on('value', function(val, old) {
-  console.log(old, 'changed to', val)
-})
-store.ref('c/x').on('value', function(val, old) {
-  console.log(old, 'changed to', val)
+store.ref().on('b/*', function(val, old, key, obj) {
+  console.log('key "c" changed')
 })
 
-store.ref(['c', 'x']).set('X').then(function(acts) {
-  console.log('changes:', acts)
+store.ref(['b', 'c']).on('', function(val, old, key, obj) {
+  console.log('key "c" changed')
 })
-store.ref(['c', 'v']).set('yo', function(err, acts) {
-  if (!err) console.log('changes:', acts)
+
+store.ref('b/c').set('newValue').then(function(patch) {
+  console.log(patch && patch.length ? 'changed' : 'not changed')
+})
+
+store.ref(['b', 'c']).set('anotherValue', function(err, acts) {
+  if (!err) console.log(patch && patch.length ? 'changed' : 'not changed')
 })
 ```
 
@@ -41,7 +40,6 @@ supports different environments
 ### Features and Limitations
 
 * set operations are async to let other external queued operation first
-* event sequence: root child > leaf child > leaf value > root value
 * available in CommonJS, ES6 modules and browser versions
 * no Promise polyfill included. Not required if callbacks are provided
 * only the last item of an Array can be deleted to avoid shifting of keys
@@ -53,26 +51,40 @@ attostore(initValue: `any`): `Store`
 
 ### Store
 
-store.ref(path: `Array|string`): `Ref`
+store.ref(path: `Array|string|number`): `Ref`
 store.patch(acts: `Array`, ondone: `(err, acts) => void`]): `void`
-store.patch(acts: `Array`): `Promise`
-store.patchSync(acts: `Array`, ondone: `(err, acts) => void`]): `void`
-store.patchSync(acts: `Array`): `Promise`
-
 
 ### Ref
 
-ref.keys: `Array`
-ref.path: `string`
 ref.root: `Ref`
 ref.parent: `Ref`
-ref.set(value: `any`, ondone: `(err, acts) => void`): `void`
-ref.set(value: `any`): `Promise`
-ref.del(ondone: `(err, acts) => void`): `void`
-ref.on(name: `string`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-ref.once(name: `string`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-ref.off(name: `string`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
 
+ref.keys(path: `Path`): `Array`
+
+ref.set(path: `Path`, value: `any`, ondone: `(err, acts) => void`): `void`
+ref.set(path: `Path`, value: `any`): `Promise`
+ref.del(path: `Path`, ondone: `(err, acts) => void`): `void`
+ref.del(path: `Path`): `Promise`
+
+ref.on(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+ref.once(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+ref.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+
+ref.query(transform: `any => any`): `Query`
+
+### Query
+
+query.on(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+query.once(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+query.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+
+### Path
+
+`Array|string|number`
+* `0`, `"0"`, `[0]`, `["0"]` are equivalent
+* `''`, `null`, `undefined` are equivalent
+* `a/b`, `["a", "b"]` are equivalent
+* wildcards can be used for listeners: `ref.on('*/id', cb)`
 
 ### Acts
 
@@ -83,7 +95,7 @@ Simple patch format for atomic changes:
 
 ### Gotcha
 
-* No Array splicing to keep the keys unchanges. additions and removals from the end only (eg. push pop)
+* No Array splicing to keep the keys unchanged. additions and removals from the end only (eg. push pop)
 
 
 ## License

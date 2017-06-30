@@ -1,68 +1,43 @@
-import {Trie} from './_trie'
 import {isEqual} from './is-eq'
 import {isObj} from './type'
 import {pathKeys} from './path-keys'
 import {Ref} from './_ref'
-
+import {Trie} from './_trie'
 /**
  * @constructor
- * @param {Object} initValue
+ * @param {*} [data]
  */
-export function Store(initValue) {
-	this.state = initValue || {}
-	this._trie = new Trie
+export function Store(data) {
+	this.trie = new Trie
+	this.data = data
 }
 
-Store.prototype = {
-	/**
-	 * @memberof Store
-	 * @param {Array|string} path
-	 * @return {!Object}
-	 */
-	ref: function(path) {
-		return new Ref(this, pathKeys(path))
-	},
-
-	patch: function(patch, ondone) {
-		return promisify(setTimeout, [patchSync, 0, this, patch], ondone)
-	},
-
-	patchSync: function(patch, ondone) {
-		return promisify(patchSync, [this, patch], ondone)
-	}
+/**
+ * @memberof Store
+ * @param {Array|string|number} [path]
+ * @return {!Object}
+ */
+Store.prototype.ref = function(path) {
+	return new Ref(this, pathKeys(path))
 }
 
-function promisify(fcn, args, cb) {
-	if (cb) {
-		args.push(cb)
-		fcn.apply(null, args)
-	}
-	else return new Promise(function(done, fail) {
-		args.push(function(err, res) {
-			if (err) fail(err)
-			else done(res)
-		})
-		fcn.apply(null, args)
-	})
-}
-
-function patchSync(root, acts, done) {
-	var oldV = root.state,
+Store.prototype.patch = function(acts, done) {
+	var oldV = this.data,
 			newV = oldV
 	for (var i=0; i<acts.length; ++i) {
-		newV = setPath(newV, pathKeys(acts[i].k), acts[i].v, 0)
+		newV = setPath(newV, acts[i].k, acts[i].v, 0)
 		if (newV instanceof Error) {
-			return done(newV)
+			done(newV)
+			return
 		}
 	}
 	if (newV !== oldV) {
-		root.state = newV
-		root._trie.fire(newV, oldV)
+		this.data = newV
+		this.trie.emit(newV, oldV)
 		done(null, acts)
 	}
-	else done()
+	else done(null, null)
 }
-
 
 /**
  * @param {*} obj

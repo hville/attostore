@@ -15,15 +15,6 @@ function isObj(v) {
 	return v && typeof v === 'object'
 }
 
-//TODO g(a,b) vs o(a)?a[b]:void 0
-function getKey(obj, key) {
-	if (isObj(obj)) return obj[key]
-}
-
-function pathKeys(path) {
-	return Array.isArray(path) ? path : (path && path.split) ? path.split('/') : cType(path) === Number ? [path] : []
-}
-
 /**
  * deep Equal check on JSON-like objects
  * @function
@@ -49,55 +40,88 @@ function isEqual(obj, ref) {
 	else return obj === ref
 }
 
+function pathKeys(path) {
+	return Array.isArray(path) ? path : (path && path.split) ? path.split('/') : cType(path) === Number ? [path] : []
+}
+
+/*
+	patchAsync: function(patch, ondone) {
+		return promisify(setTimeout, [patchSync, 0, this, patch], ondone)
+	},
+
+	patchSync: function(patch, ondone) {
+		return promisify(patchSync, [this, patch], ondone)
+	}
+*/
+function promisify(fcn, args, cb) {
+	// avoids promises and return void if a callback is provided
+	if (cb) fcn.apply(null, args.concat(cb));
+
+	// return a promise only if no callback provided
+	else return new Promise(function(done, fail) {
+		fcn.apply(null, args.concat(function(err, res) {
+			if (err) fail(err);
+			else done(res);
+		}));
+	})
+}
+
+function once(key, fcn, ctx) {
+	function wrapped(a,b,c,d) {
+		this.off(key, wrapped, this);
+		fcn.call(ctx || this, a,b,c,d);
+	}
+	return this.on(key, wrapped, this)
+}
+
+//TODO g(a,b) vs o(a)?a[b]:void 0
+function getKey(obj, key) {
+	if (isObj(obj)) return obj[key]
+}
+
 /**
  * @constructor
  */
 function Trie() {
 	this._ks = new Map;
 	this._fs = [];
+	this.data = undefined;
 }
 
-Trie.prototype = {
-	on: function(key, fcn, ctx) {
-		var leaf = set(this, pathKeys(key)),
-				list = leaf._fs;
-		if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
-	},
-	off: function(key, fcn, ctx) {
-		var keys = pathKeys(key),
-				itm = get(this, keys),
-				arr = itm && itm._fs,
-				idx = indexOf(arr, fcn, ctx);
-		if (idx !== -1) {
-			arr.splice(idx, 1);
-			if (!arr.length && !itm._ks.size) del(this, keys, 0);
-		}
-	},
-	once: function(key, fcn, ctx) {
-		function wrapped(data, last, ks) {
-			this.off(key, wrapped, this);
-			fcn.call(ctx || this, data, last, ks);
-		}
-		return this.on(key, wrapped, this)
-	},
-	emit: function(val, old) {
-		this._ks.forEach(function(kid, key) {
-			if (key === '*') {
-				var keys = filterKeys(val, old);
-				console.log('KEYS', keys);
-				for (var i=0; i<keys.length; ++i) emit(kid, getKey(val, keys[i]), keys[i], val, old);
-			}
-			else {
-				var v = getKey(val, key),
-						o = getKey(old, key);
-				if (v !== o) {
-					kid.emit(v, o);
-					emit(kid, v, key, val, old);
-				}
-			}
-		});
+Trie.prototype.on = function(key, fcn, ctx) {
+	var leaf = set(this, pathKeys(key)),
+			list = leaf._fs;
+	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
+};
+
+Trie.prototype.off = function(key, fcn, ctx) {
+	var keys = pathKeys(key),
+			itm = get(this, keys),
+			arr = itm && itm._fs,
+			idx = indexOf(arr, fcn, ctx);
+	if (idx !== -1) {
+		arr.splice(idx, 1);
+		if (!arr.length && !itm._ks.size) del(this, keys, 0);
 	}
 };
+
+Trie.prototype.once = once;
+
+Trie.prototype.emit = function(val, old, key, obj) {
+	this._ks.forEach(function(kid, k) {
+		if (k === '*') {
+			var keys = filterKeys(val, old);
+			for (var i=0; i<keys.length; ++i) kid.emit(getKey(val, keys[i]), getKey(old, keys[i]), keys[i], val);
+		}
+		else {
+			var v = getKey(val, k),
+					o = getKey(old, k);
+			if (v !== o) kid.emit(v,o,k,val);
+		}
+	});
+	for (var i=0, fs=this._fs; i<fs.length; ++i) fs[i].f.call(fs[i].c, val, old, key, obj);
+};
+
 
 function get(root, keys) {
 	for (var i=0, itm = root; i<keys.length; ++i) {
@@ -129,10 +153,6 @@ function indexOf(arr, fcn, ctx) {
 	return -1
 }
 
-function emit(trie, v, k, n, o) {
-	for (var i=0, fs=trie._fs; i<fs.length; ++i) fs[i].f.call(fs[i].c, v,k,n,o);
-}
-
 function filterKeys(val, old) {
 	var res = [],
 			kvs = isObj(val) ? Object.keys(val) : [],
@@ -147,143 +167,99 @@ function filterKeys(val, old) {
 
 /**
  * @constructor
- */
-function Emit() {
-	this._evts = new Map;
-}
-
-Emit.prototype.on = function(typ, fcn, ctx) {
-	var list = 	this._evts.get(typ);
-	if (!list) this._evts.set(typ, list = [{f: fcn, c:ctx||null}]);
-	else if (indexOf$1(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
-};
-
-Emit.prototype.off = function(typ, fcn, ctx) {
-	var arr = this._evts.get(typ),
-			idx = indexOf$1(arr, fcn, ctx);
-	if (idx !== -1) {
-		arr.splice(idx, 1);
-		if (!arr.length) this._evts.delete(typ);
-	}
-};
-
-Emit.prototype.once = function(etyp, fcn, ctx) {
-	function wrapped(data, last, ks) {
-		this.off(etyp, wrapped, this);
-		fcn.call(ctx || this, data, last, ks);
-	}
-	return this.on(etyp, wrapped, this)
-};
-
-/**
- * @param {string} typ
- * @param {*} [a0]
- * @param {*} [a1]
- * @param {*} [a2]
- * @return {void}
- */
-Emit.prototype.fire = function(typ, a0, a1, a2) {
-	var list = 	this._evts.get(typ);
-	if (list) for (var i=0; i<list.length; ++i) list[i].f.call(list[i].c, a0, a1, a2);
-};
-
-
-function indexOf$1(arr, fcn, ctx) {
-	if (arr) for (var i=0; i<arr.length; ++i) if (arr[i].f === fcn && arr[i].c === ctx) return i
-	return -1
-}
-
-/**
- * @constructor
  * @param {!Object} root
  * @param {!Array} keys
  */
 function Ref(root, keys) {
 	this._db = root;
-	this.keys = keys;
+	this._ks = keys;
 }
 
 Ref.prototype = {
-	get path() { return this.keys.join('/') },
-	get parent() { return new Ref(this._db, this.keys.slice(0,-1)) },
+	constructor: Ref,
+	get path() { return this._ks.join('/') },
+	get parent() { return new Ref(this._db, this._ks.slice(0,-1)) },
 	get root() { return new Ref(this._db, []) },
 
+	keys: function(path) {
+		return this._ks.concat(pathKeys(path))
+	},
 	/**
 	 * @memberof Ref
 	 * @param {Array|string} [path]
 	 * @return {!Object}
 	 */
 	ref: function(path) {
-		return new Ref(this._db, this.keys.concat(pathKeys(path)))
+		return new Ref(this._db, this.keys(path))
 	},
 
-	set: function(val, ondone) {
-		return this._db.patch([{k:this.keys, v:val}], ondone)
+	set: function(path, val, ondone) {
+		return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path), val], ondone)
 	},
 
-	del: function(ondone) {
-		return this._db.patch([{k:this.keys}], ondone)
+	del: function(path, ondone) {
+		return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path)], ondone)
 	},
 
-	on: function(typ, fcn, ctx) {
-		this._db._trie.set(this.keys).on(typ, fcn, ctx);
+	on: function(path, fcn, ctx) {
+		this._db.trie.on(this.keys(path), fcn, ctx);
 		return this
 	},
 
-	off: function(typ, fcn, ctx) {
-		var root = this._db._trie,
-				trie = root.get(this.keys);
-		if (trie) {
-			trie.off(typ, fcn, ctx);
-			if (!trie._evts.size) root.del(this.keys);
-		}
+	off: function(path, fcn, ctx) {
+		this._db.trie.off(this.keys(path), fcn, ctx);
 		return this
 	},
-	once: Emit.prototype.once
-};
 
-/**
- * @constructor
- * @param {Object} initValue
- */
-function Store() {
-	Trie.apply(this);
-	this.data = null;
-}
+	once: once,
 
-Store.prototype = {
-	on: Trie.prototype.on,
-	off: Trie.prototype.off,
-	once: Trie.prototype.once,
-	/**
-	 * @memberof Store
-	 * @param {Array|string} path
-	 * @return {!Object}
-	 */
-	ref: function(path) {
-		return new Ref(this, pathKeys(path))
-	},
-
-	patch: function(acts, done) {
-		var oldV = this.data,
-				newV = oldV;
-		for (var i=0; i<acts.length; ++i) {
-			newV = setPath(newV, pathKeys(acts[i].k), acts[i].v, 0);
-			if (newV instanceof Error) {
-				return done(newV)
-			}
-		}
-		if (newV !== oldV) {
-			this.data = newV;
-			Trie.prototype.emit.call(this, newV, oldV);
-			done(null, acts);
-		}
-		else done();
+	query: function(transform) { //TODO query class with Q.stop, Q.data, Q._xfo, Q.ref...
+		var query = new Trie,
+				last;
+		this._db.trie.on(this._ks, function(v,k,n) {
+			var next = transform(v,k,n);
+			query.emit(next, last);
+		});
+		return query
 	}
 };
 
+function storeSet(src, key, val, cb) {
+	return src.patch([val === undefined ? {k:key} : {k:key, v:val}], cb)
+}
 
+/**
+ * @constructor
+ * @param {*} [data]
+ */
+function Store(data) {
+	this.trie = new Trie;
+	this.data = data;
+}
 
+/**
+ * @memberof Store
+ * @param {Array|string|number} [path]
+ * @return {!Object}
+ */
+Store.prototype.ref = function(path) {
+	return new Ref(this, pathKeys(path))
+};
+
+Store.prototype.patch = function(acts, done) {
+	var oldV = this.data,
+			newV = oldV;
+	for (var i=0; i<acts.length; ++i) {
+		newV = setPath(newV, acts[i].k, acts[i].v, 0);
+		if (newV instanceof Error) return done(newV)
+	}
+	if (newV !== oldV) {
+		this.data = newV;
+		this.trie.emit(newV, oldV);
+		done(null, acts);
+	}
+	else done(null, []);
+};
 
 /**
  * @param {*} obj
@@ -293,6 +269,7 @@ Store.prototype = {
  * @return {*}
  */
 function setPath(obj, keys, val, idx) {
+
 	if (val instanceof Error) return val
 
 	// last key reached => close
