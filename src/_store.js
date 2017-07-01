@@ -1,27 +1,19 @@
 import {isEqual} from './is-eq'
 import {isObj} from './type'
-import {pathKeys} from './path-keys'
-import {Ref} from './_ref'
 import {Trie} from './_trie'
 /**
  * @constructor
  * @param {*} [data]
  */
 export function Store(data) {
-	this.trie = new Trie
+	this._ks = new Map
+	this._fs = []
 	this.data = data
 }
+var protoStore = Store.prototype = Object.create(Trie.prototype)
+protoStore.constructor = Store
 
-/**
- * @memberof Store
- * @param {Array|string|number} [path]
- * @return {!Object}
- */
-Store.prototype.ref = function(path) {
-	return new Ref(this, pathKeys(path))
-}
-
-Store.prototype.patch = function(acts, done) {
+protoStore.patch = function(acts, done) {
 	var oldV = this.data,
 			newV = oldV
 	for (var i=0; i<acts.length; ++i) {
@@ -32,8 +24,7 @@ Store.prototype.patch = function(acts, done) {
 		}
 	}
 	if (newV !== oldV) {
-		this.data = newV
-		this.trie.emit(newV, oldV)
+		this.update(newV)
 		done(null, acts)
 	}
 	else done(null, null)

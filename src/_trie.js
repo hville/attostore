@@ -2,6 +2,8 @@ import {isObj} from './type'
 import {getKey} from './get'
 import {pathKeys} from './path-keys'
 import {once} from './once'
+import {Ref} from './_ref'
+
 
 /**
  * @constructor
@@ -11,6 +13,16 @@ export function Trie() {
 	this._fs = []
 	this.data = undefined
 }
+
+/**
+ * @memberof Store
+ * @param {Array|string|number} [path]
+ * @return {!Object}
+ */
+Trie.prototype.ref = function(path) {
+	return new Ref(this, pathKeys(path))
+}
+
 
 Trie.prototype.on = function(key, fcn, ctx) {
 	var leaf = set(this, pathKeys(key)),
@@ -35,26 +47,27 @@ Trie.prototype.once = once
 
 /**
  * @param {*} val
- * @param {*} old
- * @param {string} [key]
- * @param {Object|Array} [obj]
  * @return {void}
  */
-Trie.prototype.emit = function(val, old, key, obj) {
-	this._ks.forEach(function(kid, k) {
-		if (k === '*') {
-			var keys = filterKeys(val, old)
-			for (var i=0; i<keys.length; ++i) kid.emit(getKey(val, keys[i]), getKey(old, keys[i]), keys[i], val)
-		}
-		else {
-			var v = getKey(val, k),
-					o = getKey(old, k)
-			if (v !== o) kid.emit(v,o,k,val)
-		}
-	})
-	for (var i=0, fs=this._fs; i<fs.length; ++i) fs[i].f.call(fs[i].c, val, old, key, obj)
-}
+Trie.prototype.update = function(val) {
+	if (val !== this.data) {
+		var old = this.data,
+				dif = null
+		// update kids first
+		this._ks.forEach(updateKid, val)
 
+		// update self
+		for (var i=0, fs=this._fs; i<fs.length; ++i) {
+			var fcn = fs[i].f
+			//compute changes only once and only if required
+			if (fcn.length > 2) {
+				if (!dif) dif = compare(val, old)
+				fcn.call(fs[i].c, val, old, dif[0], dif[1], dif[2])
+			}
+			else fcn.call(fs[i].c, val, old)
+		}
+	}
+}
 
 function get(root, keys) {
 	for (var i=0, itm = root; i<keys.length; ++i) {
@@ -86,14 +99,22 @@ function indexOf(arr, fcn, ctx) {
 	return -1
 }
 
-function filterKeys(val, old) {
-	var res = [],
-			kvs = isObj(val) ? Object.keys(val) : [],
+function compare(val, old) {
+	var kvs = isObj(val) ? Object.keys(val) : [],
 			kos = isObj(old) ? Object.keys(old) : []
-	if (!kvs.length) return kos
-	if (!kos.length) return kvs
 
-	for (var i=0; i<kvs.length; ++i) if (val[kvs[i]] !== old[kvs[i]]) res.push(kvs[i])
-	for (var j=0; j<kos.length; ++j) if (val[kos[j]] === undefined) res.push(kos[j])
-	return res
+	if (!kvs.length || !kos.length) return [kvs, [], kos]
+	var dif = [[],[],[]]
+	for (var i=0; i<kvs.length; ++i) {
+		if (old[kvs[i]] === undefined) dif[0].push(kvs[i]) // added
+		if (val[kvs[i]] !== old[kvs[i]]) dif[1].push(kvs[i]) // changed
+	}
+	for (var j=0; j<kos.length; ++j) {
+		if (val[kos[j]] === undefined) dif[2].push(kos[j]) // removed
+	}
+	return dif
+}
+
+function updateKid(kid, k) {
+	kid.update(getKey(this, k))
 }

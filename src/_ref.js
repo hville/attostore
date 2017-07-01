@@ -12,6 +12,8 @@ import {Trie} from './_trie'
 export function Ref(root, keys) {
 	this._db = root
 	this._ks = keys
+	this.set = root.patch ? setRef : null
+	this.del = root.patch ? delRef : null
 }
 
 Ref.prototype = {
@@ -32,32 +34,22 @@ Ref.prototype = {
 		return new Ref(this._db, this.keys(path))
 	},
 
-	set: function(path, val, ondone) {
-		return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path), val], ondone)
-	},
-
-	del: function(path, ondone) {
-		return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path)], ondone)
-	},
-
 	on: function(path, fcn, ctx) {
-		this._db.trie.on(this.keys(path), fcn, ctx)
+		this._db.on(this.keys(path), fcn, ctx)
 		return this
 	},
 
 	off: function(path, fcn, ctx) {
-		this._db.trie.off(this.keys(path), fcn, ctx)
+		this._db.off(this.keys(path), fcn, ctx)
 		return this
 	},
 
 	once: once,
 
 	query: function(transform) {
-		var query = new Trie,
-				last
-		this._db.trie.on(this._ks, function(v,k,n) {
-			var next = transform(v,k,n)
-			query.emit(next, last)
+		var query = new Trie
+		this._db.on(this._ks, function(v,k,n) {
+			query.update(transform(v,k,n))
 		})
 		return query
 	}
@@ -65,4 +57,12 @@ Ref.prototype = {
 
 function storeSet(src, key, val, cb) {
 	return src.patch([val === undefined ? {k:key} : {k:key, v:val}], cb)
+}
+
+function setRef(path, val, ondone) {
+	return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path), val], ondone)
+}
+
+function delRef(path, ondone) {
+	return promisify(setTimeout, [storeSet, 0, this._db, this.keys(path)], ondone)
 }
