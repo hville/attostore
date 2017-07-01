@@ -9,51 +9,44 @@ function compare(v,o,as,ms,ds) {
 	t('{===}', ds, this[2])
 }
 
-
 t('ref - added keys', function(end) {
-	var root = DB(),
-			ref_ = root.ref(),
-			refa = root.ref('aa')
+	var ref = DB()
 
-	refa.once(compare, [['bb','b'],[],[]])
-	ref_.ref('aa/bb').once(compare, [['cc','c'],[],[]])
-	refa.ref('bb/cc').once(compare, [[],[],[]])
-	ref_.on(compare, [['aa','a'],[],[]])
+	ref.ref('aa').once('',compare, [['bb','b'],[],[]])
+	ref.once('aa/bb', compare, [['cc','c'],[],[]])
+	ref.ref('aa').once('bb/cc', compare, [[],[],[]])
+	ref.on('',compare, [['aa','a'],[],[]])
 
-
-	ref_.set({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}, function(err) {
+	ref.set('', {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}, function(err) {
 		t('!', err)
-		t('{===}', root.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
+		t('{===}', ref.store.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 		end()
 	})
 })
 
 t('ref - del keys', function(end) {
-	var root = DB({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}),
-			ref_ = root.ref(),
-			refa = root.ref('aa')
+	var ref = DB({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 
-	refa.once(compare, [[],[],['bb','b']])
-	ref_.ref('aa/bb').once(compare, [[],[],['cc','c']])
-	refa.ref('bb/cc').once(compare, [[],[],[]])
-	ref_.on(compare, [[],[],['aa','a']])
+	ref.once('aa', compare, [[],[],['bb','b']])
+	ref.once('aa/bb', compare, [[],[],['cc','c']])
+	ref.ref('aa/bb/cc').once('',compare, [[],[],[]])
+	ref.on('',compare, [[],[],['aa','a']])
 
-	ref_.del(function(err) {
+	ref.del('',function(err) {
 		t('!', err)
-		t('{===}', root.data, undefined)
+		t('{===}', ref.store.data, undefined)
 		end()
 	})
 })
 
 t('db - query', function(end) {
-	var src = DB(),
-			ref = src.ref(),
+	var ref = DB([1,2,3,0]),
 			xfo = ref.query(function(v) { return v.slice().sort() })
 
-	xfo.on(compare, [[],[0,3],[]])
-	ref.set([1,2,3,0], function(err) {
+	xfo.once('',compare, [[],[0,3],[]])
+	ref.set('',[1,2,3,0], function(err) {
 		t('!', err)
-		t('{===}', src.data, [1,2,3,0])
+		t('{===}', ref.store.data, [1,2,3,0])
 		t('{===}', xfo.data, [0,1,2,3])
 		end()
 	})

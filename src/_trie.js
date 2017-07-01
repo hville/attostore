@@ -4,7 +4,6 @@ import {pathKeys} from './path-keys'
 import {once} from './once'
 import {Ref} from './_ref'
 
-
 /**
  * @constructor
  */
@@ -19,52 +18,55 @@ export function Trie() {
  * @param {Array|string|number} [path]
  * @return {!Object}
  */
-Trie.prototype.ref = function(path) {
-	return new Ref(this, pathKeys(path))
-}
+Trie.prototype = {
 
+	ref: function(path) {
+		return new Ref(this, pathKeys(path))
+	},
 
-Trie.prototype.on = function(key, fcn, ctx) {
-	var leaf = set(this, pathKeys(key)),
-			list = leaf._fs
-	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null})
-	return this
-}
+	on: function(key, fcn, ctx) {
+		var leaf = set(this, pathKeys(key)),
+				list = leaf._fs
+		if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null})
+		return this
+	},
 
-Trie.prototype.off = function(key, fcn, ctx) {
-	var keys = pathKeys(key),
-			itm = get(this, keys),
-			arr = itm && itm._fs,
-			idx = indexOf(arr, fcn, ctx)
-	if (idx !== -1) {
-		arr.splice(idx, 1)
-		if (!arr.length && !itm._ks.size) del(this, keys, 0)
-	}
-	return this
-}
+	off: function(key, fcn, ctx) {
+		var keys = pathKeys(key),
+				itm = get(this, keys),
+				arr = itm && itm._fs,
+				idx = indexOf(arr, fcn, ctx)
+		if (idx !== -1) {
+			arr.splice(idx, 1)
+			if (!arr.length && !itm._ks.size) del(this, keys, 0)
+		}
+		return this
+	},
 
-Trie.prototype.once = once
+	once: once,
 
-/**
- * @param {*} val
- * @return {void}
- */
-Trie.prototype.update = function(val) {
-	if (val !== this.data) {
-		var old = this.data,
-				dif = null
-		// update kids first
-		this._ks.forEach(updateKid, val)
+	/**
+	 * @param {*} val
+	 * @return {void}
+	 */
+	_set: function(val) {
+		if (val !== this.data) {
+			var old = this.data,
+					dif = null
+			// update kids first
+			this._ks.forEach(updateKid, val)
 
-		// update self
-		for (var i=0, fs=this._fs; i<fs.length; ++i) {
-			var fcn = fs[i].f
-			//compute changes only once and only if required
-			if (fcn.length > 2) {
-				if (!dif) dif = compare(val, old)
-				fcn.call(fs[i].c, val, old, dif[0], dif[1], dif[2])
+			// update self
+			this.data = val
+			for (var i=0, fs=this._fs; i<fs.length; ++i) {
+				var fcn = fs[i].f
+				//compute changes only once and only if required
+				if (fcn.length > 2) {
+					if (!dif) dif = compare(val, old)
+					fcn.call(fs[i].c, val, old, dif[0], dif[1], dif[2])
+				}
+				else fcn.call(fs[i].c, val, old)
 			}
-			else fcn.call(fs[i].c, val, old)
 		}
 	}
 }
@@ -116,5 +118,5 @@ function compare(val, old) {
 }
 
 function updateKid(kid, k) {
-	kid.update(getKey(this, k))
+	kid._set(getKey(this, k))
 }

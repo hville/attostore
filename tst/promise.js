@@ -11,15 +11,14 @@ function compare(v,o,as,ms,ds) {
 
 
 t('db - promise', function(end) {
-	var root = DB(),
-			ref_ = root.ref()
+	var ref = DB()
 
-	ref_.once(compare, [['aa', 'a'],[],[]])
-	ref_.ref('aa/bb').once(compare, [['cc', 'c'],[],[]])
-	ref_.ref('aa').once(compare, [['bb', 'b'],[],[]])
+	ref.once('',compare, [['aa', 'a'],[],[]])
+	ref.ref('aa').once('bb',compare, [['cc', 'c'],[],[]])
+	ref.once('aa',compare, [['bb', 'b'],[],[]])
 
-	ref_.set({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}).then(function() {
-		t('{===}', root.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
+	ref.set('',{aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}).then(function() {
+		t('{===}', ref.store.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 		end()
 	})
 })

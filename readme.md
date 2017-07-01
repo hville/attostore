@@ -43,7 +43,7 @@ supports different environments
 * available in CommonJS, ES6 modules and browser versions
 * no Promise polyfill included. Not required if callbacks are provided
 * only the last item of an Array can be deleted to avoid shifting of keys
-
+* only JSON types supported (Array, Object, string, number, boolean, null)
 
 ## API
 
