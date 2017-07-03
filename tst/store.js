@@ -1,53 +1,68 @@
-// @ts-check
-var DB = require( '../index' ),
+var S = require( '../index' ),
 		t = require('cotest')
 
-function compare(v,o,as,ms,ds) {
+var create = S.createStore,
+		changed = S.changedKeys,
+		missing = S.missingKeys
+
+function compare(v,o) {
 	t('!==', v, o, 'child event only if value changed: ')
-	t('{===}', as, this[0])
-	t('{===}', ms, this[1])
-	t('{===}', ds, this[2])
+	if (this) {
+		t('{==}', missing(v,o), this[0], 'added keys')
+		t('{==}', changed(v,o), this[1], 'changed keys'+v+'|'+o)// TODO keys string vs No
+		t('{==}', missing(o,v), this[2], 'deleted keys')
+	}
 }
 
 t('ref - added keys', function(end) {
-	var ref = DB()
+	var store = create()
 
-	ref.ref('aa').once('',compare, [['bb','b'],[],[]])
-	ref.once('aa/bb', compare, [['cc','c'],[],[]])
-	ref.ref('aa').once('bb/cc', compare, [[],[],[]])
-	ref.on('',compare, [['aa','a'],[],[]])
+	store.once('aa',compare, [['bb','b'],[],[]])
+	store.once('aa.bb', compare, [['cc','c'],[],[]])
+	store.once('aa.bb.cc', compare, [[],[],[]])
+	store.on('',compare, [['aa','a'],[],[]])
 
-	ref.set('', {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}, function(err) {
+	store.set('', {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'}, function(err) {
 		t('!', err)
-		t('{===}', ref.store.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
+		t('{===}', store.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 		end()
 	})
 })
 
 t('ref - del keys', function(end) {
-	var ref = DB({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
+	var store = create({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 
-	ref.once('aa', compare, [[],[],['bb','b']])
-	ref.once('aa/bb', compare, [[],[],['cc','c']])
-	ref.ref('aa/bb/cc').once('',compare, [[],[],[]])
-	ref.on('',compare, [[],[],['aa','a']])
+	store.once('aa', compare, [[],[],['bb','b']])
+	store.once('aa.bb', compare, [[],[],['cc','c']])
+	store.once('aa.bb.cc',compare, [[],[],[]])
+	store.on('',compare, [[],[],['aa','a']])
 
-	ref.del('',function(err) {
+	store.set('', undefined,function(err) {
 		t('!', err)
-		t('{===}', ref.store.data, undefined)
+		t('{===}', store.data, undefined)
 		end()
 	})
 })
 
 t('db - query', function(end) {
-	var ref = DB([1,2,3,0]),
-			xfo = ref.query(function(v) { return v.slice().sort() })
+	var store = create({data: {list: [1,0]}, view:{}, acts:{}, done:[]})
 
-	xfo.once('',compare, [[],[0,3],[]])
-	ref.set('',[1,2,3,0], function(err) {
+	store.on('data.list', function(v, o) {
+		store.set('view.sort', v.slice().sort())
+	})
+	store.on('acts.push', function(v, o) {
+		store.set('data.list', store.get('data.list').concat(v))
+	})
+
+	store.once('data.list',compare, [[2],[],[]])
+	store.once('view.sort',compare, [[0,1,2],[],[]])
+	store.once('acts.push',compare, [[],[],[]])
+
+	store.set('acts.push', 9, function(err) {
 		t('!', err)
-		t('{===}', ref.store.data, [1,2,3,0])
-		t('{===}', xfo.data, [0,1,2,3])
+		t('{===}', store.data.data.list, [1,0,9])//[1,0]
+		t('{===}', store.data.view.sort, [0,1,9])//undefined
+		t('{===}', store.data.acts.push, 9)
 		end()
 	})
 })

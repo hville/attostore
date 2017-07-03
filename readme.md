@@ -14,34 +14,30 @@ var store = create({
   b:{c: 'myNestedValue'}
 })
 
-store.ref().on('b/*', function(val, old, key, obj) {
-  console.log('key "c" changed')
+store.on('b.c', function(val, old) {
+  console.log('key "c" changed from',old.c,'to',val.c)
 })
 
-store.ref(['b', 'c']).on('', function(val, old, key, obj) {
-  console.log('key "c" changed')
-})
-
-store.ref('b/c').set('newValue').then(function(patch) {
-  console.log(patch && patch.length ? 'changed' : 'not changed')
-})
-
-store.ref(['b', 'c']).set('anotherValue', function(err, acts) {
+store.set('b.c', 'newValue', function(err, acts) {
   if (!err) console.log(patch && patch.length ? 'changed' : 'not changed')
+})
+
+store.patch([{path: ['b', 'c'], data:'anotherValue'}], function(err, acts) {
+  if (!err && acts) console.log(acts.length 'changes')
 })
 ```
 
 supports different environments
-* CJS: `var create = require('attostore')`
-* ES modules: `import create from 'attostore'`
-* browser: `var create = window.attostore`
+* CJS: `var create = require('attostore').createStore`
+* ES modules: `import {createStore} from 'attostore'`
+* browser: `var create = window.attostore.createStore`
 
 
 ### Features and Limitations
 
-* set operations are async to let other external queued operation first
+* ~~set operations are async to let other external queued operation first~~
 * available in CommonJS, ES6 modules and browser versions
-* no Promise polyfill included. Not required if callbacks are provided
+* ~~no Promise polyfill included. Not required if callbacks are provided~~
 * only the last item of an Array can be deleted to avoid shifting of keys
 * only JSON types supported (Array, Object, string, number, boolean, null)
 
@@ -51,32 +47,15 @@ attostore(initValue: `any`): `Store`
 
 ### Store
 
-store.ref(path: `Array|string|number`): `Ref`
-store.patch(acts: `Array`, ondone: `(err, acts) => void`]): `void`
+.patch(acts: `Array`, ondone: `(err, acts) => void`]): `void`
+.set(path: `Path`, value: `any`, ondone: `(err, acts) => void`): `void`
+.set(path: `Path`, value: `any`): `Promise`
+.delete(path: `Path`, ondone: `(err, acts) => void`): `void`
+.delete(path: `Path`): `Promise`
 
-### Ref
-
-ref.root: `Ref`
-ref.parent: `Ref`
-
-ref.keys(path: `Path`): `Array`
-
-ref.set(path: `Path`, value: `any`, ondone: `(err, acts) => void`): `void`
-ref.set(path: `Path`, value: `any`): `Promise`
-ref.del(path: `Path`, ondone: `(err, acts) => void`): `void`
-ref.del(path: `Path`): `Promise`
-
-ref.on(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-ref.once(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-ref.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-
-ref.query(transform: `any => any`): `Query`
-
-### Query
-
-query.on(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-query.once(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-query.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+.on(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+.once(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
 
 ### Path
 
@@ -89,7 +68,7 @@ query.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `
 ### Acts
 
 Simple patch format for atomic changes:
-* array of keys or string path: `[{k: 'a/b/c', v: 'abc'}, {k:['a','b','c']}]`
+* array of keys or string path: `[{path: 'a/b/c', v: 'abc'}, {path:['a','b','c']}]`
 * set if a value is present, delete is the value is missing
 
 
