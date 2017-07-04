@@ -16,12 +16,33 @@ function isObj(v) {
 	return v && typeof v === 'object'
 }
 
+function missingKeys(reference, value) {
+	var keys = isObj(reference) ? Object.keys(reference) : [];
+	return isObj(value) ? keys.filter(filterVoid, value) : keys
+}
+
+function changedKeys(reference, value) {
+	var keys = isObj(reference) ? Object.keys(reference) : [],
+			diff = [];
+	if (isObj(value)) for (var i=0; i<keys.length; ++i) {
+		var key = keys[i],
+				val = value[key];
+		if (val !== reference[key] && val !== undefined) diff.push(key);
+	}
+	return diff
+}
+
+function filterVoid(k) {
+	return this[k] === undefined
+}
+
 function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
 
 function pathKeys(path) {
-	return Array.isArray(path) ? path : (path && path.split) ? path.split('/') : cType(path) === Number ? [path] : []
+	var ct = cType(path);
+	return ct === Array ? path : ct === Number ? [path] : !path ? [] : path.split('/')
 }
 
 /**
@@ -49,161 +70,72 @@ function isEqual(obj, ref) {
 	else return obj === ref
 }
 
-// @ts-check
-function set(path, value, ondone) {
-	this.patch([{path: path, data: value}], ondone);
-}
-
-function del(path, ondone) {
-	this.patch([{path: path}], ondone);
-}
-
-function patch(acts, ondone) {
-	for (var i=0, data=this.data; i<acts.length; ++i) {
-		data = setKeys(data, pathKeys(acts[i].path), acts[i].data, 0);
-		if (data instanceof Error) {
-			if (ondone) ondone(data);
-			else throw data
-			return
-		}
-	}
-	var change = data !== this.data;
-	if (change) this._set(data);
-	if (ondone) ondone(null, change ? acts : null);
-}
-
-
-/**
- * @param {*} obj
- * @param {!Array} keys
- * @param {*} val
- * @param {number} idx
- * @return {*}
- */
-function setKeys(obj, keys, val, idx) {
-	if (val instanceof Error) return val
-
-	// last key reached => close
-	if (idx === keys.length) return isEqual(obj, val) ? obj : val
-
-	// recursive calls to end of path
-	if (!isObj(obj)) return Error('invalid path: ' + keys.join('/'))
-	var k = keys[idx],
-			o = obj[k],
-			v = setKeys(o, keys, val, idx+1);
-	return v === o ? obj
-		: Array.isArray(obj) ? aSet(obj, +k, v)
-			: oSet(obj, k, v)
-}
-
-
-/**
- * @param {!Array} arr
- * @param {number} key
- * @param {*} val
- * @return {!Array|Error}
- */
-function aSet(arr, key, val) {
-	var tgt = arr.slice();
-	if (val === undefined) {
-		if (key !== arr.length-1) return Error('only the last array item can be deleted')
-		tgt.length = key;
-		return tgt
-	}
-	if (key < arr.length) {
-		tgt[key] = val;
-		return tgt
-	}
-	return Error('invalid array index: ' + key)
-}
-
-/**
- * @param {!Object} obj
- * @param {string} key
- * @param {*} val
- * @return {!Object}
- */
-function oSet(obj, key, val) {
-	for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
-	if (val !== undefined) res[key] = val;
-	return res
-}
-
 /**
  * @constructor
  * @param {*} [data]
  */
-function Trie(data) {
+function Store(data) {
 	this._ks = new Map;
 	this._fs = [];
 	this.data = data;
 }
 
 /**
- * @memberof Store
- * @param {Array|string|number} [path]
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
  * @return {!Object}
  */
-Trie.prototype = {
-
-	on: function(key, fcn, ctx) {
-		var leaf = setLeaf(this, pathKeys(key)),
-				list = leaf._fs;
-		if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
-		return this
-	},
-
-	off: function(key, fcn, ctx) {
-		var keys = pathKeys(key),
-				itm = getLeaf(this, keys),
-				arr = itm && itm._fs,
-				idx = indexOf(arr, fcn, ctx);
-		if (idx !== -1) {
-			arr.splice(idx, 1);
-			if (!arr.length && !itm._ks.size) delLeaf(this, keys, 0);
-		}
-		return this
-	},
-
-	once: function(key, fcn, ctx) {
-		function wrap(a,b) {
-			this.off(key, wrap, this);
-			fcn.call(ctx, a,b);
-		}
-		return this.on(key, wrap, this)
-	},
-
-	/**
-	 * @param {*} val
-	 * @return {void}
-	 */
-	_set: function(val) {
-		if (val !== this.data) {
-			var old = this.data;
-			this.data = val;
-
-			// fire kids first...
-			this._ks.forEach(updateKid, val);
-			// ...then self
-			for (var i=0, fs=this._fs; i<fs.length; ++i) {
-				fs[i].f.call(fs[i].c, val, old);
-			}
-		}
-	},
-
-	patch: patch,
-	set: set,
-	delete: del,
-	get: function(path) {
-		var keys = pathKeys(path);
-		for (var i=0, itm = this.data; i<keys.length; ++i) {
-			if (isObj(itm)) itm = itm[keys[i]];
-			else return
-		}
-		return itm
-	}
-
+Store.prototype.on = function(key, fcn, ctx) {
+	var leaf = setLeaf(this, pathKeys(key)),
+			list = leaf._fs;
+	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
+	return this
 };
+
+/**
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
+ * @return {!Object}
+ */
+Store.prototype.off = function(key, fcn, ctx) {
+	var keys = pathKeys(key),
+			itm = getLeaf(this, keys),
+			arr = itm && itm._fs,
+			idx = indexOf(arr, fcn, ctx);
+	if (idx !== -1) {
+		arr.splice(idx, 1);
+		if (!arr.length && !itm._ks.size) delLeaf(this, keys, 0);
+	}
+	return this
+};
+
+/**
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
+ * @return {!Object}
+ */
+Store.prototype.once = function(key, fcn, ctx) {
+	function wrap(a,b) {
+		this.off(key, wrap, this);
+		fcn.call(ctx, a,b);
+	}
+	return this.on(key, wrap, this)
+};
+
+Store.prototype.set = set;
+
+Store.prototype.get = function(path) {
+	var keys = pathKeys(path);
+	for (var i=0, itm = this.data; i<keys.length; ++i) {
+		if (isObj(itm)) itm = itm[keys[i]];
+		else return
+	}
+	return itm
+};
+
 
 function getLeaf(root, keys) {
 	for (var i=0, itm = root; i<keys.length; ++i) {
@@ -215,7 +147,7 @@ function getLeaf(root, keys) {
 function setLeaf(root, keys) {
 	for (var i=0, itm = root; i<keys.length; ++i) {
 		var key = ''+keys[i];
-		if (!itm._ks.has(key)) itm._ks.set(key, new Trie(getKey(itm.data, key)));
+		if (!itm._ks.has(key)) itm._ks.set(key, new Store(getKey(itm.data, key)));
 		itm = itm._ks.get(key);
 	}
 	return itm
@@ -235,36 +167,107 @@ function indexOf(arr, fcn, ctx) {
 	return -1
 }
 
-function updateKid(kid, k) {
-	kid._set(getKey(this, k));
+
+function set(acts, ondone) {
+	var data = Array.isArray(acts) ? acts.reduce(setRed, this.data) : setRed(this.data, acts);
+	if (data instanceof Error) {
+		if (!ondone) return Promise.reject(data)
+		ondone(data);
+		return
+	}
+	var done = data === this.data ? null : acts;
+	update(this, data);
+	if (!ondone) return Promise.resolve(done)
+	ondone(null, done);
 }
 
+function setRed(res, act) {
+	return res instanceof Error ? res : setKeys(res, pathKeys(act.key), act.val, 0)
+}
+
+
+/**
+ * @param {*} obj
+ * @param {!Array} keys
+ * @param {*} val
+ * @param {number} idx
+ * @return {*}
+ */
+function setKeys(obj, keys, val, idx) {
+	if (val instanceof Error) return val
+
+	// last key reached => close
+	if (idx === keys.length) return isEqual(obj, val) ? obj : val
+
+	// recursive calls to end of path
+	if (!isObj(obj)) return Error('invalid path: ' + keys.join('.'))
+	var k = keys[idx],
+			o = obj[k],
+			v = setKeys(o, keys, val, idx+1);
+	return v === o ? obj : Array.isArray(obj) ? aSet(obj, +k, v) : oSet(obj, k, v)
+}
+
+
+/**
+ * @param {!Array} arr
+ * @param {number} key
+ * @param {*} val
+ * @return {!Array|Error}
+ */
+function aSet(arr, key, val) {
+	var tgt = arr.slice();
+	if (val === undefined) {
+		if (key !== arr.length-1) return Error('only the last array item can be deleted')
+		tgt.length = key;
+		return tgt
+	}
+	if (key <= arr.length) {
+		tgt[key] = val;
+		return tgt
+	}
+	return Error('invalid array index: ' + key)
+}
+
+/**
+ * @param {!Object} obj
+ * @param {string} key
+ * @param {*} val
+ * @return {!Object}
+ */
+function oSet(obj, key, val) {
+	for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
+	if (val !== undefined) res[key] = val;
+	return res
+}
+
+/**
+ * @param {!Object} store
+ * @param {*} val
+ * @return {void}
+ */
+function update(store, val) {
+	if (val !== store.data) {
+		var old = store.data;
+		store.data = val;
+
+		// fire kids first...
+		store._ks.forEach(updateKid, val);
+		// ...then self
+		for (var i=0, fs=store._fs; i<fs.length; ++i) {
+			fs[i].f.call(fs[i].c, val, old);
+		}
+	}
+}
+
+function updateKid(kid, k) {
+	update(kid, getKey(this, k));
+}
+
+// @ts-check
 // @ts-check
 function createStore(initialValue) {
-	return new Trie(initialValue)
+	return new Store(initialValue)
 }
-
-function missingKeys(reference, value) {
-	var keys = isObj(reference) ? Object.keys(reference) : [];
-	return isObj(value) ? keys.filter(filterVoid, value) : keys
-}
-
-function changedKeys(reference, value) {
-	var keys = isObj(reference) ? Object.keys(reference) : [],
-			diff = [];
-	if (isObj(value)) for (var i=0; i<keys.length; ++i) {
-		var key = keys[i],
-				val = value[key];
-		if (val !== reference[key] && val !== undefined) diff.push(key);
-	}
-	return diff
-}
-
-function filterVoid(k) {
-	return this[k] === undefined
-}
-
-// @ts-check
 
 exports.createStore = createStore;
 exports.changedKeys = changedKeys;
