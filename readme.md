@@ -14,8 +14,8 @@ var store = create({
   b:{c: 'myNestedValue'}
 })
 
-store.on('b/c', function(val, old) {
-  console.log('key "c" changed from',old.c,'to',val.c)
+store.on('b/c', function(val, key, old) {
+  console.log('key',key,'changed from',old.c,'to',val.c)
 })
 
 store.set({key: ['b', 'c'], val: 'newValue'}, function(err, act) {
@@ -52,9 +52,9 @@ attostore(initValue: `any`): `Store`
 .set(acts: `Action|Actions`, ondone: `(err, acts) => void`): `void`
 .set(acts: `Action|Actions`): `Promise`
 
-.on(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-.once(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
-.off(path: `Path`, handler: `(val, old, key)=>void`, [, context: `any`]): `Ref`
+.on(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
+.once(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
+.off(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 
 ### Acts
 

@@ -51,9 +51,9 @@ Store.prototype.off = function(key, fcn, ctx) {
  * @return {!Object}
  */
 Store.prototype.once = function(key, fcn, ctx) {
-	function wrap(a,b) {
+	function wrap(v,k,o) {
 		this.off(key, wrap, this);
-		fcn.call(ctx, a,b)
+		fcn.call(ctx, v,k,o)
 	}
 	return this.on(key, wrap, this)
 }
@@ -108,7 +108,7 @@ function set(acts, ondone) {
 		return
 	}
 	var done = data === this.data ? null : acts
-	update(this, data)
+	update(this, data, null)
 	if (!ondone) return Promise.resolve(done)
 	ondone(null, done)
 }
@@ -175,22 +175,22 @@ function oSet(obj, key, val) {
 /**
  * @param {!Object} store
  * @param {*} val
+ * @param {string} key
  * @return {void}
  */
-function update(store, val) {
+function update(store, val, key) {
 	if (val !== store.data) {
 		var old = store.data
 		store.data = val
-
 		// fire kids first...
 		store._ks.forEach(updateKid, val)
 		// ...then self
 		for (var i=0, fs=store._fs; i<fs.length; ++i) {
-			fs[i].f.call(fs[i].c, val, old)
+			fs[i].f.call(fs[i].c, val, key, old)
 		}
 	}
 }
 
 function updateKid(kid, k) {
-	update(kid, getKey(this, k))
+	update(kid, getKey(this, k), k)
 }

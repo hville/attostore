@@ -5,8 +5,9 @@ var create = S.createStore,
 		changed = S.changedKeys,
 		missing = S.missingKeys
 
-function compare(v,o) {
+function compare(v,k,o) {
 	t('!==', v, o, 'child event only if value changed: ')
+	t('===', k === null || typeof k === 'string', true, 'child event only if value changed: ')
 	if (this) {
 		t('{==}', missing(v,o), this[0], 'added keys')
 		t('{==}', changed(v,o), this[1], 'changed keys'+v+'|'+o)// TODO keys string vs No
@@ -85,8 +86,9 @@ t('db - actions', function() {
 			history.push(act)
 		})
 	}
-	store.on('', function(v,o) {
+	store.on('', function(v,k,o) {
 		t('{===}', v, expected.newVal)
+		t('===', k, null)
 		t('{===}', o, expected.oldVal)
 		t('{===}', history, expected.history)
 		t('{===}', store.data, expected.newVal)
