@@ -89,7 +89,7 @@ function Store(data) {
 Store.prototype.on = function(key, fcn, ctx) {
 	var leaf = setLeaf(this, pathKeys(key)),
 			list = leaf._fs;
-	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx||null});
+	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx});
 	return this
 };
 
@@ -118,11 +118,12 @@ Store.prototype.off = function(key, fcn, ctx) {
  * @return {!Object}
  */
 Store.prototype.once = function(key, fcn, ctx) {
+	var store = this;
 	function wrap(v,k,o) {
-		this.off(key, wrap, this);
-		fcn.call(ctx, v,k,o);
+		store.off(key, wrap, ctx);
+		fcn.call(this, v,k,o);
 	}
-	return this.on(key, wrap, this)
+	return this.on(key, wrap, ctx)
 };
 
 Store.prototype.set = set;
@@ -169,15 +170,12 @@ function indexOf(arr, fcn, ctx) {
 
 function set(acts, ondone) {
 	var data = Array.isArray(acts) ? acts.reduce(setRed, this.data) : setRed(this.data, acts);
-	if (data instanceof Error) {
-		if (!ondone) return Promise.reject(data)
-		ondone(data);
-		return
-	}
+
+	if (data instanceof Error) return ondone ? void ondone.call(this, data) : Promise.reject(data)
+
 	var done = data === this.data ? null : acts;
 	update(this, data, null);
-	if (!ondone) return Promise.resolve(done)
-	ondone(null, done);
+	return ondone ? void ondone.call(this, null, done) : Promise.resolve(done)
 }
 
 function setRed(res, act) {
@@ -253,7 +251,7 @@ function update(store, val, key) {
 		store._ks.forEach(updateKid, val);
 		// ...then self
 		for (var i=0, fs=store._fs; i<fs.length; ++i) {
-			fs[i].f.call(fs[i].c, val, key, old);
+			fs[i].f.call(fs[i].c === undefined ? store : fs[i].c, val, key, old);
 		}
 	}
 }

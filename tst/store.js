@@ -87,6 +87,7 @@ t('db - actions', function() {
 		})
 	}
 	store.on('', function(v,k,o) {
+		t('===', this, store)
 		t('{===}', v, expected.newVal)
 		t('===', k, null)
 		t('{===}', o, expected.oldVal)

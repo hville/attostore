@@ -1,6 +1,6 @@
 {
   "name": "attostore",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "description": "async json data store",
   "keywords": [
     "json",
