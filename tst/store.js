@@ -28,6 +28,7 @@ t('ref - added keys', function() {
 	t('{===}', store.data, {aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 })
 
+
 t('ref - del keys', function() {
 	var store = create({aa: {bb:{cc:{}, c: 'c'}, b: 'b'}, a:'a'})
 
@@ -99,3 +100,18 @@ t('store - commands', function() {
 	store.act('stop')
 })
 
+
+t('store - errors', function() {
+	var initVal = {},
+			commands = { init: function() { return op('', {}) } },
+			store = create(initVal, commands)
+
+	store.on('', function() {
+		t('!', true, 'should never be called')
+	})
+
+	t('===', store.set('a/b', 9) instanceof Error, true)
+	t('===', store.delete('a/b') instanceof Error, true)
+	t('===', store.act('a/b', 9) instanceof Error, true)
+	t('===', store.run({path:'a/b'}) instanceof Error, true)
+})

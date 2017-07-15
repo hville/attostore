@@ -147,8 +147,6 @@ function updateKid(kid, k) {
  * @return {*}
  */
 function setKeys(obj, keys, val, idx) {
-	if (val instanceof Error) return val
-
 	// last key reached => close
 	if (idx === keys.length) return isEqual(obj, val) ? obj : val
 
@@ -157,7 +155,7 @@ function setKeys(obj, keys, val, idx) {
 	var k = keys[idx],
 			o = obj[k],
 			v = setKeys(o, keys, val, idx+1);
-	return v === o ? obj : Array.isArray(obj) ? aSet(obj, +k, v) : oSet(obj, k, v)
+	return v instanceof Error ? v : v === o ? obj : Array.isArray(obj) ? aSet(obj, +k, v) : oSet(obj, k, v)
 }
 
 
