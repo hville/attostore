@@ -39,6 +39,18 @@ t('ref - del keys', function() {
 	t('{===}', store.data, undefined)
 })
 
+t('auto purge trie', function() {
+	var store = create()
+	function noop(){}
+	t('===', store._ks.size, 0)
+	store.on('aa/bb', noop)
+	t('===', store._ks.size, 1)
+	t('===', store._ks.get('aa')._ks.size, 1)
+	t('===', store._ks.get('aa')._ks.get('bb')._ks.size, 0)
+	store.off('aa/bb', noop)
+	t('===', store._ks.size, 0)
+})
+
 t('db - query', function() {
 	var store = create({data: {list: [1,0]}, view:{}, acts:{}, done:[]})
 

@@ -1,5 +1,6 @@
 import {getKey} from './get-key'
 import {pathKeys} from './path-keys'
+import {Trie} from './_trie'
 
 /**
  * @param {Array|string|number} key
@@ -47,8 +48,11 @@ export function once(key, fcn, ctx) {
 	return this.on(key, wrap, ctx)
 }
 
-
-
+/**
+ * @param {Trie} root
+ * @param {string[]} keys
+ * @return {Trie}
+ */
 function getLeaf(root, keys) {
 	for (var i=0, itm = root; i<keys.length; ++i) {
 		if (itm !== undefined) itm = itm._ks.get(''+keys[i])
@@ -56,24 +60,41 @@ function getLeaf(root, keys) {
 	return itm
 }
 
+/**
+ * @param {Trie} root
+ * @param {string[]} keys
+ * @return {Trie}
+ */
 function setLeaf(root, keys) {
 	for (var i=0, itm = root; i<keys.length; ++i) {
 		var key = ''+keys[i]
-		if (!itm._ks.has(key)) itm._ks.set(key, new itm.constructor(getKey(itm.data, key)))
+		if (!itm._ks.has(key)) itm._ks.set(key, new Trie(getKey(itm.data, key)))
 		itm = itm._ks.get(key)
 	}
 	return itm
 }
 
+/**
+ * @param {Trie} trie
+ * @param {string[]} keys
+ * @param {number} idx
+ * @return {void}
+ */
 function delLeaf(trie, keys, idx) {
 	var key = keys[idx++],
 			kid = trie._ks.get(key)
-	if (kid) {
+	if (kid instanceof Trie) {
 		if (idx !== keys.length) delLeaf(kid, keys, idx)
 		if (!kid._ks.size && !kid._fs.length) trie._ks.delete(key)
 	}
 }
 
+/**
+ * @param {Array} arr
+ * @param {Function} fcn
+ * @param {any} ctx
+ * @return {number}
+ */
 function indexOf(arr, fcn, ctx) {
 	if (arr) for (var i=0; i<arr.length; ++i) if (arr[i].f === fcn && arr[i].c === ctx) return i
 	return -1
