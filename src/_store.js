@@ -6,10 +6,12 @@ import {on, off, once} from './_store-events'
 /**
  * @constructor
  * @param {*} [data]
+ * @param {Object} [commands]
  */
-export function Store(data) {
+export function Store(data, commands) {
 	this._ks = new Map
 	this._fs = []
+	this._cs = commands || {}
 	this.data = data
 }
 

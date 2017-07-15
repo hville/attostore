@@ -3,7 +3,8 @@ var S = require( '../index' ),
 
 var create = S.createStore,
 		changed = S.changedKeys,
-		missing = S.missingKeys
+		missing = S.missingKeys,
+		op = S.createOperation
 
 function compare(v,k,o) {
 	t('!==', v, o, 'child event only if value changed: ')
@@ -65,8 +66,36 @@ t('db - query', function() {
 	store.once('view/sort',compare, [[0,1,2],[],[]])
 	store.once('acts/push',compare, [[],[],[]])
 
-	t('!', store.act({path: 'acts/push', data: 9}))
+	t('!', store.run([{path: 'acts/push', data: 9}]))
 	t('{===}', store.data.data.list, [1,0,9])//[1,0]
 	t('{===}', store.data.view.sort, [0,1,9])//undefined
 	t('{===}', store.data.acts.push, 9)
 })
+
+
+t('store - commands', function() {
+	var commands = {
+				init: function() { return op('', {}) },
+				yell: function(x) { return op('yell', !!x) },
+				sing: function(x) { return op('sing', !!x) },
+				stop: function() { return [op('yell', false), op('sing', false)] }
+			},
+			store = create(null, commands),
+			expected = {newVal:{}, oldVal: null}
+
+	store.on('', function(v,k,o) {
+		t('===', this, store)
+		t('{===}', v, expected.newVal)
+		t('===', k, null)
+		t('{===}', o, expected.oldVal)
+		t('{===}', store.data, expected.newVal)
+	})
+	store.act('init')
+	expected = {newVal:{yell:true}, oldVal:{}}
+	store.act('yell', true)
+	expected = {newVal:{yell:true, sing:true}, oldVal:{yell:true}}
+	store.act('sing', 2)
+	expected = {newVal:{yell:false, sing:false}, oldVal:{yell:true, sing:true}}
+	store.act('stop')
+})
+

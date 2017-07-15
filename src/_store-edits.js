@@ -27,19 +27,31 @@ export function del(path) {
  */
 
 /**
- * @param {Operation} op
- * @return {Error|void}
+ * @param {null|string|Array} path
+ * @param {*} [data]
+ * @return {Operation}
  */
-export function act(op) {
-	return update(this, setRed(this.data, op), null)
+export function createOperation(path, data) {
+	return data === undefined ? {path: path == null ? null : path} : {path: path == null ? null : path, data: data}
 }
 
 /**
- * @param {Operation[]} ops
+ * @param {string} name
+ * @param {*} [data]
+ * @return {Error|void}
+ */
+export function act(name, data) {
+	var ops = this._cs[name] && this._cs[name](data)
+	if (!ops) return Error('invalid command ' + name)
+	return this.run(ops)
+}
+
+/**
+ * @param {Operation|Operation[]} ops
  * @return {Error|void}
  */
 export function run(ops) {
-	var data = ops.reduce(setRed, this.data)
+	var data = Array.isArray(ops) ? ops.reduce(setRed, this.data) : setRed(this.data, ops)
 	return data instanceof Error ? data : update(this, data, null)
 }
 

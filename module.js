@@ -1,9 +1,15 @@
 // @ts-check
-export {changedKeys, missingKeys} from './src/compare'
-
-// @ts-check
 import {Store} from './src/_store'
 
-export function createStore(initialValue) {
-	return new Store(initialValue)
+/**
+ * @param {*} [initialValue]
+ * @param {Object} [commands]
+ * @return {Store}
+ */
+export function createStore(initialValue, commands) {
+	return new Store(initialValue, commands)
 }
+
+export {changedKeys, missingKeys} from './src/compare'
+export {Store} from './src/_store'
+export {createOperation} from './src/_store-edits'

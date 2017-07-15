@@ -17,26 +17,6 @@ function isObj(v) {
 	return v && typeof v === 'object'
 }
 
-function missingKeys(reference, value) {
-	var keys = isObj(reference) ? Object.keys(reference) : [];
-	return isObj(value) ? keys.filter(filterVoid, value) : keys
-}
-
-function changedKeys(reference, value) {
-	var keys = isObj(reference) ? Object.keys(reference) : [],
-			diff = [];
-	if (isObj(value)) for (var i=0; i<keys.length; ++i) {
-		var key = keys[i],
-				val = value[key];
-		if (val !== reference[key] && val !== undefined) diff.push(key);
-	}
-	return diff
-}
-
-function filterVoid(k) {
-	return this[k] === undefined
-}
-
 function pathKeys(path) {
 	var ct = cType(path);
 	return ct === Array ? path : ct === Number ? [path] : !path ? [] : path.split('/')
@@ -95,19 +75,31 @@ function del(path) {
  */
 
 /**
- * @param {Operation} op
- * @return {Error|void}
+ * @param {null|string|Array} path
+ * @param {*} [data]
+ * @return {Operation}
  */
-function act(op) {
-	return update(this, setRed(this.data, op), null)
+function createOperation(path, data) {
+	return data === undefined ? {path: path == null ? null : path} : {path: path == null ? null : path, data: data}
 }
 
 /**
- * @param {Operation[]} ops
+ * @param {string} name
+ * @param {*} [data]
+ * @return {Error|void}
+ */
+function act(name, data) {
+	var ops = this._cs[name] && this._cs[name](data);
+	if (!ops) return Error('invalid command ' + name)
+	return this.run(ops)
+}
+
+/**
+ * @param {Operation|Operation[]} ops
  * @return {Error|void}
  */
 function run(ops) {
-	var data = ops.reduce(setRed, this.data);
+	var data = Array.isArray(ops) ? ops.reduce(setRed, this.data) : setRed(this.data, ops);
 	return data instanceof Error ? data : update(this, data, null)
 }
 
@@ -313,10 +305,12 @@ function indexOf(arr, fcn, ctx) {
 /**
  * @constructor
  * @param {*} [data]
+ * @param {Object} [commands]
  */
-function Store(data) {
+function Store(data, commands) {
 	this._ks = new Map;
 	this._fs = [];
+	this._cs = commands || {};
 	this.data = data;
 }
 
@@ -339,12 +333,38 @@ Store.prototype.get = function(path) {
 	return itm
 };
 
+function missingKeys(reference, value) {
+	var keys = isObj(reference) ? Object.keys(reference) : [];
+	return isObj(value) ? keys.filter(filterVoid, value) : keys
+}
+
+function changedKeys(reference, value) {
+	var keys = isObj(reference) ? Object.keys(reference) : [],
+			diff = [];
+	if (isObj(value)) for (var i=0; i<keys.length; ++i) {
+		var key = keys[i],
+				val = value[key];
+		if (val !== reference[key] && val !== undefined) diff.push(key);
+	}
+	return diff
+}
+
+function filterVoid(k) {
+	return this[k] === undefined
+}
+
 // @ts-check
-// @ts-check
-function createStore(initialValue) {
-	return new Store(initialValue)
+/**
+ * @param {*} [initialValue]
+ * @param {Object} [commands]
+ * @return {Store}
+ */
+function createStore(initialValue, commands) {
+	return new Store(initialValue, commands)
 }
 
 exports.createStore = createStore;
 exports.changedKeys = changedKeys;
 exports.missingKeys = missingKeys;
+exports.Store = Store;
+exports.createOperation = createOperation;
