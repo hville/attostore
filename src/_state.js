@@ -1,52 +1,42 @@
-import {isObj} from './type'
 import {isEqual} from './is-eq'
-import {getKey} from './get-key'
 import {pathKeys} from './path-keys'
+import {isObj} from './type'
 
 /**
- * @param {Object|Array<Object>} ops
- * @return {Error|void}
+ * @constructor
+ * @param {*} [data]
+ * @param {Object} [commands]
  */
-export function patch(ops) {
-	var data = Array.isArray(ops) ? ops.reduce(setRed, this.data) : setRed(this.data, ops)
-	return data instanceof Error ? data : update(this, data, '')
+export function State(data) {
+	this.data = data
 }
 
-/**
- * @param {*} res
- * @param {Object} op
- * @returns {*}
- */
-function setRed(res, op) {
-	return res instanceof Error ? res : setKeys(res, pathKeys(op.p), op.v, 0)
-}
-
-
-/**
- * @param {!Object} store
- * @param {*} val
- * @param {string} key
- * @return {void|Error}
- */
-function update(store, val, key) {
-	if (val instanceof Error) return val
-
-	if (val !== store.data) {
-		var old = store.data
-		store.data = val
-		// fire kids first...
-		store._ks.forEach(updateKid, val)
-		// ...then self
-		for (var i=0, fs=store._fs; i<fs.length; ++i) {
-			fs[i].f.call(fs[i].c === undefined ? store : fs[i].c, val, key, old)
-		}
+State.prototype.get = function(path) {
+	var keys = pathKeys(path)
+	for (var i=0, itm = this.data; i<keys.length; ++i) {
+		if (isObj(itm)) itm = itm[keys[i]]
+		else return
 	}
+	return itm
 }
 
-function updateKid(kid, k) {
-	update(kid, getKey(this, k), k)
+/**
+ * @param {null|string|Array} path
+ * @param {*} data
+ * @return {Object}
+ */
+State.prototype.set = function(path, data) {
+	if (!(this.data instanceof Error)) this.data = setKeys(this.data, pathKeys(path), data, 0)
+	return this
 }
 
+/**
+ * @param {null|string|Array} path
+ * @return {Object}
+ */
+State.prototype.delete = function(path) {
+	return this.set(path, undefined)
+}
 
 /**
  * @param {*} obj
@@ -60,7 +50,7 @@ function setKeys(obj, keys, val, idx) {
 	if (idx === keys.length) return isEqual(obj, val) ? obj : val
 
 	// recursive calls to end of path
-	if (!isObj(obj)) return Error('invalid path: ' + keys.join('.'))
+	if (!isObj(obj)) return Error('invalid path: ' + keys.join('/'))
 	var k = keys[idx],
 			o = obj[k],
 			v = setKeys(o, keys, val, idx+1)

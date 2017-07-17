@@ -10,9 +10,9 @@
 import {createStore, setOperation, delOperation} from 'attostore'
 
 var store = create({}, {
-  yell: function(name) { return setOperation('yell', name) },
-  sing: function(name) { return setOperation('sing', name) },
-  stop: function() { return [delOperation('yell'), delOperation('sing')] },
+  yell: function(name) { this.set('yell', name) },
+  sing: function(name) { this.set('sing', name) },
+  stop: function() { this.delete('yell').delete('sing')] },
 })
 
 store.on('yell', function(val, key, old) {
@@ -40,23 +40,19 @@ supports different environments
 
 ## API
 
-createStore(initValue: `any`, commands: `{cmdName: Command}`): `Store`
-setOperation(path, data): `Operation`
-delOperation(path): `Operation`
-
+createStore(initValue: `any`, commands: `{commandName: Command}`): `Store`
 
 ### Store
-
-.patch(`Operation|Operations`): `Error|void`
 
 .on(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 .once(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 .off(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
+.run(commandName: `string`, ...args: `any`): `Error|void`
 
 
 ### Command
 
-`any => Operation|Operations`
+`(this:{set, delete, get}, any) => void`
 
 
 ### Path
