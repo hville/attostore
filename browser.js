@@ -51,47 +51,10 @@ function getKey(obj, key) {
 }
 
 /**
- * @param {null|string|Array} path
- * @param {*} data
- * @return {Error|void}
- */
-function set(path, data) {
-	return update(this, setKeys(this.data, pathKeys(path), data, 0), '')
-}
-
-/**
- * @param {null|string|Array} [path]
- * @return {Error|void}
- */
-function del(path) {
-	return update(this, setKeys(this.data, pathKeys(path), undefined, 0), '')
-}
-
-/**
- * @param {null|string|Array} path
- * @param {*} [data]
- * @return {Object}
- */
-function createOperation(path, data) {
-	return data === undefined ? {path: path == null ? null : path} : {path: path == null ? null : path, data: data}
-}
-
-/**
- * @param {string} name
- * @param {*} [data]
- * @return {Error|void}
- */
-function act(name, data) {
-	var ops = this._cs[name] && this._cs[name](data);
-	if (!ops) return Error('invalid command ' + name)
-	return this.run(ops)
-}
-
-/**
  * @param {Object|Array<Object>} ops
  * @return {Error|void}
  */
-function run(ops) {
+function patch(ops) {
 	var data = Array.isArray(ops) ? ops.reduce(setRed, this.data) : setRed(this.data, ops);
 	return data instanceof Error ? data : update(this, data, '')
 }
@@ -102,7 +65,7 @@ function run(ops) {
  * @returns {*}
  */
 function setRed(res, op) {
-	return res instanceof Error ? res : setKeys(res, pathKeys(op.path), op.data, 0)
+	return res instanceof Error ? res : setKeys(res, pathKeys(op.p), op.v, 0)
 }
 
 
@@ -183,6 +146,36 @@ function oSet(obj, key, val) {
 	for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
 	if (val !== undefined) res[key] = val;
 	return res
+}
+
+/**
+ * @param {null|string|Array} path
+ * @param {*} [data]
+ * @return {Object}
+ */
+function setOperation(path, data) {
+	if (path === undefined || data === undefined) throw Error('undefined argument')
+	return {p: path, v: data}
+}
+
+/**
+ * @param {null|string|Array} path
+ * @return {Object}
+ */
+function delOperation(path) {
+	if (path === undefined) throw Error('undefined argument')
+	return {p: path == null ? '' : path}
+}
+
+/**
+ * @param {string} name
+ * @param {*} [data]
+ * @return {Error|void}
+ */
+function run(name, data) {
+	var ops = this._cs[name] && this._cs[name](data);
+	if (!ops) return Error('invalid command ' + name)
+	return this.run(ops)
 }
 
 /**
@@ -309,11 +302,8 @@ Store.prototype.on = on;
 Store.prototype.off = off;
 Store.prototype.once = once;
 
-Store.prototype.set = set;
-Store.prototype.delete = del;
-Store.prototype.act = act;
+Store.prototype.patch = patch;
 Store.prototype.run = run;
-
 
 Store.prototype.get = function(path) {
 	var keys = pathKeys(path);
@@ -358,6 +348,7 @@ exports.createStore = createStore;
 exports.changedKeys = changedKeys;
 exports.missingKeys = missingKeys;
 exports.Store = Store;
-exports.createOperation = createOperation;
+exports.setOperation = setOperation;
+exports.delOperation = delOperation;
 
 }((this.attostore = this.attostore || {})));
