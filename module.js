@@ -12,4 +12,4 @@ export function createStore(initialValue, commands) {
 
 export {changedKeys, missingKeys} from './src/compare'
 export {Store} from './src/_store'
-export {createOperation} from './src/_store-edits'
+export {setOperation, delOperation} from './src/_store-ops'

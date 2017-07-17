@@ -4,64 +4,21 @@ import {getKey} from './get-key'
 import {pathKeys} from './path-keys'
 
 /**
- * @param {null|string|Array} path
- * @param {any} data
+ * @param {Object|Array<Object>} ops
  * @return {Error|void}
  */
-export function set(path, data) {
-	return update(this, setKeys(this.data, pathKeys(path), data, 0), null)
-}
-
-/**
- * @param {null|string|Array} [path]
- * @return {Error|void}
- */
-export function del(path) {
-	return update(this, setKeys(this.data, pathKeys(path), undefined, 0), null)
-}
-
-/**
- * @typedef {Object} Operation
- * @prop {string|Array} [path]
- * @prop {*} [data]
- */
-
-/**
- * @param {null|string|Array} path
- * @param {*} [data]
- * @return {Operation}
- */
-export function createOperation(path, data) {
-	return data === undefined ? {path: path == null ? null : path} : {path: path == null ? null : path, data: data}
-}
-
-/**
- * @param {string} name
- * @param {*} [data]
- * @return {Error|void}
- */
-export function act(name, data) {
-	var ops = this._cs[name] && this._cs[name](data)
-	if (!ops) return Error('invalid command ' + name)
-	return this.run(ops)
-}
-
-/**
- * @param {Operation|Operation[]} ops
- * @return {Error|void}
- */
-export function run(ops) {
+export function patch(ops) {
 	var data = Array.isArray(ops) ? ops.reduce(setRed, this.data) : setRed(this.data, ops)
-	return data instanceof Error ? data : update(this, data, null)
+	return data instanceof Error ? data : update(this, data, '')
 }
 
 /**
- * @param {any} res
- * @param {Operation} op
- * @returns {any}
+ * @param {*} res
+ * @param {Object} op
+ * @returns {*}
  */
 function setRed(res, op) {
-	return res instanceof Error ? res : setKeys(res, pathKeys(op.path), op.data, 0)
+	return res instanceof Error ? res : setKeys(res, pathKeys(op.p), op.v, 0)
 }
 
 

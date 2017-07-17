@@ -1,30 +1,26 @@
 # attodom
 
-*small async json in-memory store with path events, ~3kb min, ~1kb gz*
+*small json in-memory store with path events, ~3kb min, ~1kb gz*
 
 • [Example](#example) • [Why](#why) • [API](#api) • [License](#license)
 
 ## Examples
 
 ```javascript
-import create from 'attostore'
+import {createStore, setOperation, delOperation} from 'attostore'
 
-var store = create({
-  a: 'myInitValue',
-  b:{c: 'myNestedValue'}
+var store = create({}, {
+  yell: function(name) { return setOperation('yell', name) },
+  sing: function(name) { return setOperation('sing', name) },
+  stop: function() { return [delOperation('yell'), delOperation('sing')] },
 })
 
-store.on('b/c', function(val, key, old) {
-  console.log('key',key,'changed from',old.c,'to',val.c)
+store.on('yell', function(val, key, old) {
+  console.log(val ? 'yelling '+val : 'being quiet')
 })
 
-store.set({key: ['b', 'c'], val: 'newValue'}, function(err, act) {
-  if (!err) console.log(!!act ? 'changed' : 'not changed')
-})
-
-store.set([{key: 'b/c', val:'anotherValue'}]).then(function(act) {
-  if (act) console.log(act.length 'changes')
-})
+store.run('yell', 'YO!')
+store.run('stop')
 ```
 
 supports different environments
@@ -36,7 +32,6 @@ supports different environments
 ### Features, Limitations, Gotcha
 
 * available in CommonJS, ES6 modules and browser versions
-* no Promise polyfill included. Not required if callbacks are provided to the set function
 * only the last item of an Array can be deleted to avoid shifting of keys
 * No Array splicing to keep the keys unchanged. additions and removals from the end only (eg. push pop)
 * only JSON types supported (Array, Object, string, number, boolean, null)
@@ -45,23 +40,24 @@ supports different environments
 
 ## API
 
-attostore(initValue: `any`): `Store`
+createStore(initValue: `any`, commands: `{cmdName: Command}`): `Store`
+setOperation(path, data): `Operation`
+delOperation(path): `Operation`
+
 
 ### Store
 
-.set(acts: `Action|Actions`, ondone: `(err, acts) => void`): `void`
-.set(acts: `Action|Actions`): `Promise`
+.patch(`Operation|Operations`): `Error|void`
 
 .on(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 .once(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 .off(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 
-### Acts
 
-Simple patch format for atomic changes:
-* single or multiple changes: `[{key: path, val: 'c'}]`, `{key: path, val: 'c'}`
-* set if a value is present, delete is the value is missing or undefined
-* the store is only changed if all actions pass without errors
+### Command
+
+`any => Operation|Operations`
+
 
 ### Path
 

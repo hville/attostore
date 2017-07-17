@@ -1,6 +1,7 @@
 import {pathKeys} from './path-keys'
 import {isObj} from './type'
-import {set, del, act, run} from './_store-edits'
+import {patch} from './_store-edits'
+import {run} from './_store-ops'
 import {on, off, once} from './_store-events'
 
 /**
@@ -19,11 +20,8 @@ Store.prototype.on = on
 Store.prototype.off = off
 Store.prototype.once = once
 
-Store.prototype.set = set
-Store.prototype.delete = del
-Store.prototype.act = act
+Store.prototype.patch = patch
 Store.prototype.run = run
-
 
 Store.prototype.get = function(path) {
 	var keys = pathKeys(path)

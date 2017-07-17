@@ -50,7 +50,7 @@ export function once(key, fcn, ctx) {
 
 /**
  * @param {Trie} root
- * @param {string[]} keys
+ * @param {Array<string>} keys
  * @return {Trie}
  */
 function getLeaf(root, keys) {
@@ -62,7 +62,7 @@ function getLeaf(root, keys) {
 
 /**
  * @param {Trie} root
- * @param {string[]} keys
+ * @param {Array<string>} keys
  * @return {Trie}
  */
 function setLeaf(root, keys) {
@@ -76,7 +76,7 @@ function setLeaf(root, keys) {
 
 /**
  * @param {Trie} trie
- * @param {string[]} keys
+ * @param {Array<string>} keys
  * @param {number} idx
  * @return {void}
  */
@@ -92,7 +92,7 @@ function delLeaf(trie, keys, idx) {
 /**
  * @param {Array} arr
  * @param {Function} fcn
- * @param {any} ctx
+ * @param {*} ctx
  * @return {number}
  */
 function indexOf(arr, fcn, ctx) {
