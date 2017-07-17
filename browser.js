@@ -16,166 +16,13 @@ function isObj(v) {
 	return v && typeof v === 'object'
 }
 
-function pathKeys(path) {
-	var ct = cType(path);
-	return ct === Array ? path : ct === Number ? [path] : !path ? [] : path.split('/')
-}
-
-/**
- * deep Equal check on JSON-like objects
- * @function
- * @param {*} obj - object to check
- * @param {*} ref - the reference
- * @return {boolean|void} true if equal
- */
-function isEqual(obj, ref) {
-	var cO = cType(obj),
-			cR = cType(ref);
-	if (cO !== cR) return false
-	if (cO === Array) {
-		if (obj.length !== ref.length) return false
-		for (var i=0; i<obj.length; ++i) if (!isEqual(obj[i], ref[i])) return false
-		return true
-	}
-	if (cO === Object) {
-		var ko = Object.keys(obj); //TODO type annotation obj: Object
-		if (ko.length !== Object.keys(ref).length) return false //TODO type annotation typeof ref: Object
-		for (i=0; i<ko.length; ++i) if (!isEqual(obj[ko[i]], ref[ko[i]])) return false
-		return true
-	}
-	else return obj === ref
-}
-
 function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
 
-/**
- * @param {Object|Array<Object>} ops
- * @return {Error|void}
- */
-function patch(ops) {
-	var data = Array.isArray(ops) ? ops.reduce(setRed, this.data) : setRed(this.data, ops);
-	return data instanceof Error ? data : update(this, data, '')
-}
-
-/**
- * @param {*} res
- * @param {Object} op
- * @returns {*}
- */
-function setRed(res, op) {
-	return res instanceof Error ? res : setKeys(res, pathKeys(op.p), op.v, 0)
-}
-
-
-/**
- * @param {!Object} store
- * @param {*} val
- * @param {string} key
- * @return {void|Error}
- */
-function update(store, val, key) {
-	if (val instanceof Error) return val
-
-	if (val !== store.data) {
-		var old = store.data;
-		store.data = val;
-		// fire kids first...
-		store._ks.forEach(updateKid, val);
-		// ...then self
-		for (var i=0, fs=store._fs; i<fs.length; ++i) {
-			fs[i].f.call(fs[i].c === undefined ? store : fs[i].c, val, key, old);
-		}
-	}
-}
-
-function updateKid(kid, k) {
-	update(kid, getKey(this, k), k);
-}
-
-
-/**
- * @param {*} obj
- * @param {!Array} keys
- * @param {*} val
- * @param {number} idx
- * @return {*}
- */
-function setKeys(obj, keys, val, idx) {
-	// last key reached => close
-	if (idx === keys.length) return isEqual(obj, val) ? obj : val
-
-	// recursive calls to end of path
-	if (!isObj(obj)) return Error('invalid path: ' + keys.join('.'))
-	var k = keys[idx],
-			o = obj[k],
-			v = setKeys(o, keys, val, idx+1);
-	return v instanceof Error ? v : v === o ? obj : Array.isArray(obj) ? aSet(obj, +k, v) : oSet(obj, k, v)
-}
-
-
-/**
- * @param {!Array} arr
- * @param {number} key
- * @param {*} val
- * @return {!Array|Error}
- */
-function aSet(arr, key, val) {
-	var tgt = arr.slice();
-	if (val === undefined) {
-		if (key !== arr.length-1) return Error('only the last array item can be deleted')
-		tgt.length = key;
-		return tgt
-	}
-	if (key <= arr.length) {
-		tgt[key] = val;
-		return tgt
-	}
-	return Error('invalid array index: ' + key)
-}
-
-
-/**
- * @param {!Object} obj
- * @param {string} key
- * @param {*} val
- * @return {!Object}
- */
-function oSet(obj, key, val) {
-	for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
-	if (val !== undefined) res[key] = val;
-	return res
-}
-
-/**
- * @param {null|string|Array} path
- * @param {*} [data]
- * @return {Object}
- */
-function setOperation(path, data) {
-	if (path === undefined || data === undefined) throw Error('undefined argument')
-	return {p: path, v: data}
-}
-
-/**
- * @param {null|string|Array} path
- * @return {Object}
- */
-function delOperation(path) {
-	if (path === undefined) throw Error('undefined argument')
-	return {p: path == null ? '' : path}
-}
-
-/**
- * @param {string} name
- * @param {*} [data]
- * @return {Error|void}
- */
-function run(name, data) {
-	var ops = this._cs[name] && this._cs[name](data);
-	if (!ops) return Error('invalid command ' + name)
-	return this.run(ops)
+function pathKeys(path) {
+	var ct = cType(path);
+	return ct === Array ? path : ct === Number ? [path] : !path ? [] : path.split('/')
 }
 
 /**
@@ -188,18 +35,6 @@ function Trie(data) {
 	this.data = data;
 }
 
-/**
- * @param {Array|string|number} key
- * @param {Function} fcn
- * @param {*} [ctx]
- * @return {!Object}
- */
-function on(key, fcn, ctx) {
-	var leaf = setLeaf(this, pathKeys(key)),
-			list = leaf._fs;
-	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx});
-	return this
-}
 
 /**
  * @param {Array|string|number} key
@@ -207,7 +42,20 @@ function on(key, fcn, ctx) {
  * @param {*} [ctx]
  * @return {!Object}
  */
-function off(key, fcn, ctx) {
+Trie.prototype.on = function(key, fcn, ctx) {
+	var leaf = setLeaf(this, pathKeys(key)),
+			list = leaf._fs;
+	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx});
+	return this
+};
+
+/**
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
+ * @return {!Object}
+ */
+Trie.prototype.off = function(key, fcn, ctx) {
 	var keys = pathKeys(key),
 			itm = getLeaf(this, keys),
 			arr = itm && itm._fs,
@@ -217,7 +65,7 @@ function off(key, fcn, ctx) {
 		if (!arr.length && !itm._ks.size) delLeaf(this, keys, 0);
 	}
 	return this
-}
+};
 
 /**
  * @param {Array|string|number} key
@@ -225,14 +73,15 @@ function off(key, fcn, ctx) {
  * @param {*} [ctx]
  * @return {!Object}
  */
-function once(key, fcn, ctx) {
+Trie.prototype.once = function(key, fcn, ctx) {
 	var store = this;
 	function wrap(v,k,o) {
 		store.off(key, wrap, ctx);
 		fcn.call(this, v,k,o);
 	}
 	return this.on(key, wrap, ctx)
-}
+};
+
 
 /**
  * @param {Trie} root
@@ -287,25 +136,40 @@ function indexOf(arr, fcn, ctx) {
 }
 
 /**
+ * deep Equal check on JSON-like objects
+ * @function
+ * @param {*} obj - object to check
+ * @param {*} ref - the reference
+ * @return {boolean|void} true if equal
+ */
+function isEqual(obj, ref) {
+	var cO = cType(obj),
+			cR = cType(ref);
+	if (cO !== cR) return false
+	if (cO === Array) {
+		if (obj.length !== ref.length) return false
+		for (var i=0; i<obj.length; ++i) if (!isEqual(obj[i], ref[i])) return false
+		return true
+	}
+	if (cO === Object) {
+		var ko = Object.keys(obj); //TODO type annotation obj: Object
+		if (ko.length !== Object.keys(ref).length) return false //TODO type annotation typeof ref: Object
+		for (i=0; i<ko.length; ++i) if (!isEqual(obj[ko[i]], ref[ko[i]])) return false
+		return true
+	}
+	else return obj === ref
+}
+
+/**
  * @constructor
  * @param {*} [data]
  * @param {Object} [commands]
  */
-function Store(data, commands) {
-	this._ks = new Map;
-	this._fs = [];
-	this._cs = commands || {};
+function State(data) {
 	this.data = data;
 }
 
-Store.prototype.on = on;
-Store.prototype.off = off;
-Store.prototype.once = once;
-
-Store.prototype.patch = patch;
-Store.prototype.run = run;
-
-Store.prototype.get = function(path) {
+State.prototype.get = function(path) {
 	var keys = pathKeys(path);
 	for (var i=0, itm = this.data; i<keys.length; ++i) {
 		if (isObj(itm)) itm = itm[keys[i]];
@@ -313,6 +177,134 @@ Store.prototype.get = function(path) {
 	}
 	return itm
 };
+
+/**
+ * @param {null|string|Array} path
+ * @param {*} data
+ * @return {Object}
+ */
+State.prototype.set = function(path, data) {
+	if (!(this.data instanceof Error)) this.data = setKeys(this.data, pathKeys(path), data, 0);
+	return this
+};
+
+/**
+ * @param {null|string|Array} path
+ * @return {Object}
+ */
+State.prototype.delete = function(path) {
+	return this.set(path, undefined)
+};
+
+/**
+ * @param {*} obj
+ * @param {!Array} keys
+ * @param {*} val
+ * @param {number} idx
+ * @return {*}
+ */
+function setKeys(obj, keys, val, idx) {
+	// last key reached => close
+	if (idx === keys.length) return isEqual(obj, val) ? obj : val
+
+	// recursive calls to end of path
+	if (!isObj(obj)) return Error('invalid path: ' + keys.join('/'))
+	var k = keys[idx],
+			o = obj[k],
+			v = setKeys(o, keys, val, idx+1);
+	return v instanceof Error ? v : v === o ? obj : Array.isArray(obj) ? aSet(obj, +k, v) : oSet(obj, k, v)
+}
+
+
+/**
+ * @param {!Array} arr
+ * @param {number} key
+ * @param {*} val
+ * @return {!Array|Error}
+ */
+function aSet(arr, key, val) {
+	var tgt = arr.slice();
+	if (val === undefined) {
+		if (key !== arr.length-1) return Error('only the last array item can be deleted')
+		tgt.length = key;
+		return tgt
+	}
+	if (key <= arr.length) {
+		tgt[key] = val;
+		return tgt
+	}
+	return Error('invalid array index: ' + key)
+}
+
+
+/**
+ * @param {!Object} obj
+ * @param {string} key
+ * @param {*} val
+ * @return {!Object}
+ */
+function oSet(obj, key, val) {
+	for (var i=0, ks=Object.keys(obj), res={}; i<ks.length; ++i) if (ks[i] !== key) res[ks[i]] = obj[ks[i]];
+	if (val !== undefined) res[key] = val;
+	return res
+}
+
+/**
+ * @constructor
+ * @param {*} initValue
+ * @param {Object} commands
+ */
+function Store(initValue, commands) {
+	this._ks = new Map;
+	this._fs = [];
+	this._cs = commands || {};
+	this.data = initValue;
+}
+
+Store.prototype.on = Trie.prototype.on;
+Store.prototype.off = Trie.prototype.off;
+Store.prototype.once = Trie.prototype.once;
+
+Store.prototype.get = State.prototype.get;
+
+/**
+ * @param {string} name
+ * @param {...*} [param]
+ * @return {Error|void}
+ */
+Store.prototype.run = function(name, param) { //eslint-disable-line no-unused-vars
+	var state = new State(this.data),
+			cmd = this._cs[name];
+	if (!cmd) return Error('invalid command ' + name)
+	for (var i=1, args=[]; i<arguments.length; ++i) args[i-1] = arguments[i];
+	cmd.apply(state, args);
+	return state.data instanceof Error ? state.data : update(this, state.data, null)
+};
+
+/**
+ * @param {!Object} trie
+ * @param {*} val
+ * @param {string} key
+ * @return {void|Error}
+ */
+function update(trie, val, key) {
+	if (val instanceof Error) return val
+
+	if (val !== trie.data) {
+		var old = trie.data;
+		trie.data = val;
+		// fire kids first...
+		trie._ks.forEach(updateKid, val);
+		// ...then self
+		for (var i=0, fs=trie._fs; i<fs.length; ++i) {
+			fs[i].f.call(fs[i].c, val, key, old);
+		}
+	}
+}
+
+function updateKid(kid, k) {
+	update(kid, getKey(this, k), k);
+}
 
 function missingKeys(reference, value) {
 	var keys = isObj(reference) ? Object.keys(reference) : [];
@@ -336,19 +328,17 @@ function filterVoid(k) {
 
 // @ts-check
 /**
- * @param {*} [initialValue]
- * @param {Object} [commands]
+ * @param {*} initValue
+ * @param {Object} commands
  * @return {Store}
  */
-function createStore(initialValue, commands) {
-	return new Store(initialValue, commands)
+function createStore(initValue, commands) {
+	return new Store(initValue, commands)
 }
 
 exports.createStore = createStore;
 exports.changedKeys = changedKeys;
 exports.missingKeys = missingKeys;
 exports.Store = Store;
-exports.setOperation = setOperation;
-exports.delOperation = delOperation;
 
 }((this.attostore = this.attostore || {})));
