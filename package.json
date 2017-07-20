@@ -14,7 +14,8 @@
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^8.0.12",
-    "cotest": "^2.1.0"
+    "cotest": "^2.1.0",
+    "node-dynamic-import": "0.0.1"
   },
   "scripts": {
     "test": "npm run build:main & cotest ./tst",
