@@ -12,6 +12,7 @@ export function Store(initValue, commands) {
 	this._fs = []
 	this._cs = commands || {}
 	this.data = initValue
+	this._ts = new State(initValue)
 }
 
 Store.prototype.on = Trie.prototype.on
@@ -26,12 +27,13 @@ Store.prototype.get = State.prototype.get
  * @return {Error|void}
  */
 Store.prototype.run = function(name, param) { //eslint-disable-line no-unused-vars
-	var state = new State(this.data),
-			cmd = this._cs[name]
+	var cmd = this._cs[name],
+			tmp = this._ts
 	if (!cmd) return Error('invalid command ' + name)
+	tmp.data = this.data
 	for (var i=1, args=[]; i<arguments.length; ++i) args[i-1] = arguments[i]
-	cmd.apply(state, args)
-	return state.data instanceof Error ? state.data : update(this, state.data, null)
+	cmd.apply(tmp, args)
+	return tmp.data instanceof Error ? tmp.data : update(this, tmp.data, null)
 }
 
 /**
