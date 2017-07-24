@@ -41,121 +41,6 @@ function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
 
-function pathKeys(path) {
-	var ct = cType(path);
-	return ct === Array ? path : ct === Number ? [path] : !path ? [] : path.split('/')
-}
-
-/**
- * @constructor
- * @param {*} [data]
- */
-function Trie(data) {
-	this._ks = new Map;
-	this._fs = [];
-	this.data = data;
-}
-
-
-/**
- * @param {Array|string|number} key
- * @param {Function} fcn
- * @param {*} [ctx]
- * @return {!Object}
- */
-Trie.prototype.on = function(key, fcn, ctx) {
-	var leaf = setLeaf(this, pathKeys(key)),
-			list = leaf._fs;
-	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx});
-	return this
-};
-
-/**
- * @param {Array|string|number} key
- * @param {Function} fcn
- * @param {*} [ctx]
- * @return {!Object}
- */
-Trie.prototype.off = function(key, fcn, ctx) {
-	var keys = pathKeys(key),
-			itm = getLeaf(this, keys),
-			arr = itm && itm._fs,
-			idx = indexOf(arr, fcn, ctx);
-	if (idx !== -1) {
-		arr.splice(idx, 1);
-		if (!arr.length && !itm._ks.size) delLeaf(this, keys, 0);
-	}
-	return this
-};
-
-/**
- * @param {Array|string|number} key
- * @param {Function} fcn
- * @param {*} [ctx]
- * @return {!Object}
- */
-Trie.prototype.once = function(key, fcn, ctx) {
-	var store = this;
-	function wrap(v,k,o) {
-		store.off(key, wrap, ctx);
-		fcn.call(this, v,k,o);
-	}
-	return this.on(key, wrap, ctx)
-};
-
-
-/**
- * @param {Trie} root
- * @param {Array<string>} keys
- * @return {Trie}
- */
-function getLeaf(root, keys) {
-	for (var i=0, itm = root; i<keys.length; ++i) {
-		if (itm !== undefined) itm = itm._ks.get(''+keys[i]);
-	}
-	return itm
-}
-
-/**
- * @param {Trie} root
- * @param {Array<string>} keys
- * @return {Trie}
- */
-function setLeaf(root, keys) {
-	for (var i=0, itm = root; i<keys.length; ++i) {
-		var key = ''+keys[i];
-		if (!itm._ks.has(key)) itm._ks.set(key, new Trie(getKey(itm.data, key)));
-		itm = itm._ks.get(key);
-	}
-	return itm
-}
-
-/**
- * @param {Trie} trie
- * @param {Array<string>} keys
- * @param {number} idx
- * @return {void}
- */
-function delLeaf(trie, keys, idx) {
-	var key = keys[idx++],
-			kid = trie._ks.get(key);
-	if (kid instanceof Trie) {
-		if (idx !== keys.length) delLeaf(kid, keys, idx);
-		if (!kid._ks.size && !kid._fs.length) trie._ks.delete(key);
-	}
-}
-
-/**
- * @param {Array} arr
- * @param {Function} fcn
- * @param {*} ctx
- * @return {number}
- */
-function indexOf(arr, fcn, ctx) {
-	if (arr) for (var i=0; i<arr.length; ++i) if (arr[i].f === fcn && arr[i].c === ctx) return i
-	return -1
-}
-
 /**
  * deep Equal check on JSON-like objects
  * @function
@@ -181,6 +66,11 @@ function isEqual(obj, ref) {
 	else return obj === ref
 }
 
+function pathKeys(path) {
+	var ct = cType(path);
+	return ct === Array ? path : ct === Number ? [path] : !path ? [] : path.split('/')
+}
+
 /**
  * @constructor
  * @param {*} initValue
@@ -191,9 +81,55 @@ function Store(initValue) {
 	this.data = initValue;
 }
 
-Store.prototype.on = Trie.prototype.on;
-Store.prototype.off = Trie.prototype.off;
-Store.prototype.once = Trie.prototype.once;
+
+/**
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
+ * @return {!Object}
+ */
+Store.prototype.on = function(key, fcn, ctx) {
+	var leaf = setLeaf(this, pathKeys(key)),
+			list = leaf._fs;
+	if (indexOf(list, fcn, ctx) === -1) list.push({f: fcn, c:ctx});
+	return this
+};
+
+
+/**
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
+ * @return {!Object}
+ */
+Store.prototype.off = function(key, fcn, ctx) {
+	var keys = pathKeys(key),
+			itm = getLeaf(this, keys),
+			arr = itm && itm._fs,
+			idx = indexOf(arr, fcn, ctx);
+	if (idx !== -1) {
+		arr.splice(idx, 1);
+		if (!arr.length && !itm._ks.size) delLeaf(this, keys, 0);
+	}
+	return this
+};
+
+
+/**
+ * @param {Array|string|number} key
+ * @param {Function} fcn
+ * @param {*} [ctx]
+ * @return {!Object}
+ */
+Store.prototype.once = function(key, fcn, ctx) {
+	var store = this;
+	function wrap(v,k,o) {
+		store.off(key, wrap, ctx);
+		fcn.call(this, v,k,o);
+	}
+	return this.on(key, wrap, ctx)
+};
+
 
 Store.prototype.get = function(path) {
 	var keys = pathKeys(path);
@@ -205,16 +141,86 @@ Store.prototype.get = function(path) {
 };
 
 /**
- * @param {Array|Object} ops
+ * @param {Array|string} path
+ * @param {*} data
  * @return {Error|void}
  */
-Store.prototype.act = function(ops) {
-	var res = Array.isArray(ops) ? ops.reduce(act, this.data) : act(this.data, ops);
-	return res instanceof Error ? res : update(this, res, null)
+Store.prototype.set = function(path, data) {
+	var res = setKeys(this.data, pathKeys(path), data, 0);
+	if (res instanceof Error) return res
+	update(this, res, null);
 };
-function act(res, op) {
-	return res instanceof Error ? res : setKeys(res, pathKeys(op.p), op.v, 0)
+
+
+/**
+ * @param {Array} ops
+ * @return {Error|void}
+ */
+Store.prototype.run = function(ops) {
+	var res = this.data;
+	for (var i=0; i<ops.length; ++i) {
+		res = setKeys(res, pathKeys(ops[i].path), ops[i].data, 0);
+		if (res instanceof Error) return res
+	}
+	update(this, res, null);
+};
+
+
+/**
+ * @param {Store} root
+ * @param {Array<string>} keys
+ * @return {Store}
+ */
+function getLeaf(root, keys) {
+	for (var i=0, itm = root; i<keys.length; ++i) {
+		if (itm !== undefined) itm = itm._ks.get(''+keys[i]);
+	}
+	return itm
 }
+
+
+/**
+ * @param {Store} root
+ * @param {Array<string>} keys
+ * @return {Store}
+ */
+function setLeaf(root, keys) {
+	for (var i=0, itm = root; i<keys.length; ++i) {
+		var key = ''+keys[i];
+		if (!itm._ks.has(key)) itm._ks.set(key, new Store(getKey(itm.data, key)));
+		itm = itm._ks.get(key);
+	}
+	return itm
+}
+
+
+/**
+ * @param {Store} trie
+ * @param {Array<string>} keys
+ * @param {number} idx
+ * @return {void}
+ */
+function delLeaf(trie, keys, idx) {
+	var key = keys[idx++],
+			kid = trie._ks.get(key);
+	if (kid instanceof Store) {
+		if (idx !== keys.length) delLeaf(kid, keys, idx);
+		if (!kid._ks.size && !kid._fs.length) trie._ks.delete(key);
+	}
+}
+
+
+/**
+ * @param {Array} arr
+ * @param {Function} fcn
+ * @param {*} ctx
+ * @return {number}
+ */
+function indexOf(arr, fcn, ctx) {
+	if (arr) for (var i=0; i<arr.length; ++i) if (arr[i].f === fcn && arr[i].c === ctx) return i
+	return -1
+}
+
 
 /**
  * @param {!Object} trie
@@ -222,9 +228,7 @@ function act(res, op) {
  * @param {string} key
  * @return {void|Error}
  */
-function update(trie, val, key) { //TODO key???
-	if (val instanceof Error) return val
-
+function update(trie, val, key) {
 	if (val !== trie.data) {
 		var old = trie.data;
 		trie.data = val;
@@ -236,10 +240,10 @@ function update(trie, val, key) { //TODO key???
 		}
 	}
 }
-
 function updateKid(kid, k) {
 	update(kid, getKey(this, k), k);
 }
+
 
 /**
  * @param {*} obj

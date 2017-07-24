@@ -7,31 +7,26 @@
 ## Examples
 
 ```javascript
-import {createStore, setOperation, delOperation} from 'attostore'
+import {Store} from 'attostore'
 
-var store = create({}, {
-  yell: function(name) { this.set('yell', name) },
-  sing: function(name) { this.set('sing', name) },
-  stop: function() { this.delete('yell').delete('sing')] },
+var store = new Store({})
+
+store.on('a/b', function(val, key, old) {
+  console.log('changed', key, 'from', old, 'to', val)
 })
 
-store.on('yell', function(val, key, old) {
-  console.log(val ? 'yelling '+val : 'being quiet')
-})
-
-store.run('yell', 'YO!')
-store.run('stop')
+store.run([{path:'a/b', data:'hello'}])
+store.set(['a', 'b'], data:'world')
 ```
 
 supports different environments
 * CJS: `var create = require('attostore').createStore`
 * ES modules: `import {createStore} from 'attostore'`
-* browser: `var create = window.attostore.createStore`
 
 
 ### Features, Limitations, Gotcha
 
-* available in CommonJS, ES6 modules and browser versions
+* available in CommonJS and ES6 modules
 * only the last item of an Array can be deleted to avoid shifting of keys
 * No Array splicing to keep the keys unchanged. additions and removals from the end only (eg. push pop)
 * only JSON types supported (Array, Object, string, number, boolean, null)
@@ -40,7 +35,7 @@ supports different environments
 
 ## API
 
-createStore(initValue: `any`, commands: `{commandName: Command}`): `Store`
+new Store(initValue: `any`): `Store`
 
 ### Store
 
@@ -48,11 +43,14 @@ createStore(initValue: `any`, commands: `{commandName: Command}`): `Store`
 .once(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 .off(path: `Path`, handler: `(val, key, old, key)=>void`, [, context: `any`]): `Ref`
 .run(commandName: `string`, ...args: `any`): `Error|void`
+.get(path: `Path`): `any`
+.run(command[]): `Error|void`
+.set(path: `Path` [, data: `any`]): `Error|void`
 
 
 ### Command
 
-`(this:{set, delete, get}, any) => void`
+`{path: Path, data: any}`
 
 
 ### Path
