@@ -155,7 +155,7 @@ Store.prototype.set = function(path, data) {
  * @param {Array} ops
  * @return {Error|void}
  */
-Store.prototype.act = function(ops) {
+Store.prototype.run = function(ops) {
 	var res = this.data;
 	for (var i=0; i<ops.length; ++i) {
 		res = setKeys(res, pathKeys(ops[i].path), ops[i].data, 0);
