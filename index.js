@@ -17,6 +17,26 @@ function isObj(v) {
 	return v && typeof v === 'object'
 }
 
+function missingKeys(reference, value) {
+	var keys = isObj(reference) ? Object.keys(reference) : [];
+	return isObj(value) ? keys.filter(filterVoid, value) : keys
+}
+
+function changedKeys(reference, value) {
+	var keys = isObj(reference) ? Object.keys(reference) : [],
+			diff = [];
+	if (isObj(value)) for (var i=0; i<keys.length; ++i) {
+		var key = keys[i],
+				val = value[key];
+		if (val !== reference[key] && val !== undefined) diff.push(key);
+	}
+	return diff
+}
+
+function filterVoid(k) {
+	return this[k] === undefined
+}
+
 function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
@@ -163,14 +183,19 @@ function isEqual(obj, ref) {
 
 /**
  * @constructor
- * @param {*} [data]
- * @param {Object} [commands]
+ * @param {*} initValue
  */
-function State(data) {
-	this.data = data;
+function Store(initValue) {
+	this._ks = new Map;
+	this._fs = [];
+	this.data = initValue;
 }
 
-State.prototype.get = function(path) {
+Store.prototype.on = Trie.prototype.on;
+Store.prototype.off = Trie.prototype.off;
+Store.prototype.once = Trie.prototype.once;
+
+Store.prototype.get = function(path) {
 	var keys = pathKeys(path);
 	for (var i=0, itm = this.data; i<keys.length; ++i) {
 		if (isObj(itm)) itm = itm[keys[i]];
@@ -180,22 +205,41 @@ State.prototype.get = function(path) {
 };
 
 /**
- * @param {null|string|Array} path
- * @param {*} data
- * @return {Object}
+ * @param {Array|Object} ops
+ * @return {Error|void}
  */
-State.prototype.set = function(path, data) {
-	if (!(this.data instanceof Error)) this.data = setKeys(this.data, pathKeys(path), data, 0);
-	return this
+Store.prototype.act = function(ops) {
+	var res = Array.isArray(ops) ? ops.reduce(act, this.data) : act(this.data, ops);
+	return res instanceof Error ? res : update(this, res, null)
 };
+function act(res, op) {
+	return res instanceof Error ? res : setKeys(res, pathKeys(op.p), op.v, 0)
+}
 
 /**
- * @param {null|string|Array} path
- * @return {Object}
+ * @param {!Object} trie
+ * @param {*} val
+ * @param {string} key
+ * @return {void|Error}
  */
-State.prototype.delete = function(path) {
-	return this.set(path, undefined)
-};
+function update(trie, val, key) { //TODO key???
+	if (val instanceof Error) return val
+
+	if (val !== trie.data) {
+		var old = trie.data;
+		trie.data = val;
+		// fire kids first...
+		trie._ks.forEach(updateKid, val);
+		// ...then self
+		for (var i=0, fs=trie._fs; i<fs.length; ++i) {
+			fs[i].f.call(fs[i].c, val, key, old);
+		}
+	}
+}
+
+function updateKid(kid, k) {
+	update(kid, getKey(this, k), k);
+}
 
 /**
  * @param {*} obj
@@ -250,96 +294,8 @@ function oSet(obj, key, val) {
 	return res
 }
 
-/**
- * @constructor
- * @param {*} initValue
- * @param {Object} commands
- */
-function Store(initValue, commands) {
-	this._ks = new Map;
-	this._fs = [];
-	this._cs = commands || {};
-	this.data = initValue;
-	this._ts = new State(initValue);
-}
-
-Store.prototype.on = Trie.prototype.on;
-Store.prototype.off = Trie.prototype.off;
-Store.prototype.once = Trie.prototype.once;
-
-Store.prototype.get = State.prototype.get;
-
-/**
- * @param {string} name
- * @param {...*} [param]
- * @return {Error|void}
- */
-Store.prototype.run = function(name, param) { //eslint-disable-line no-unused-vars
-	var cmd = this._cs[name],
-			tmp = this._ts;
-	if (!cmd) return Error('invalid command ' + name)
-	tmp.data = this.data;
-	for (var i=1, args=[]; i<arguments.length; ++i) args[i-1] = arguments[i];
-	cmd.apply(tmp, args);
-	return tmp.data instanceof Error ? tmp.data : update(this, tmp.data, null)
-};
-
-/**
- * @param {!Object} trie
- * @param {*} val
- * @param {string} key
- * @return {void|Error}
- */
-function update(trie, val, key) {
-	if (val instanceof Error) return val
-
-	if (val !== trie.data) {
-		var old = trie.data;
-		trie.data = val;
-		// fire kids first...
-		trie._ks.forEach(updateKid, val);
-		// ...then self
-		for (var i=0, fs=trie._fs; i<fs.length; ++i) {
-			fs[i].f.call(fs[i].c, val, key, old);
-		}
-	}
-}
-
-function updateKid(kid, k) {
-	update(kid, getKey(this, k), k);
-}
-
-function missingKeys(reference, value) {
-	var keys = isObj(reference) ? Object.keys(reference) : [];
-	return isObj(value) ? keys.filter(filterVoid, value) : keys
-}
-
-function changedKeys(reference, value) {
-	var keys = isObj(reference) ? Object.keys(reference) : [],
-			diff = [];
-	if (isObj(value)) for (var i=0; i<keys.length; ++i) {
-		var key = keys[i],
-				val = value[key];
-		if (val !== reference[key] && val !== undefined) diff.push(key);
-	}
-	return diff
-}
-
-function filterVoid(k) {
-	return this[k] === undefined
-}
-
 // @ts-check
-/**
- * @param {*} initValue
- * @param {Object} commands
- * @return {Store}
- */
-function createStore(initValue, commands) {
-	return new Store(initValue, commands)
-}
 
-exports.createStore = createStore;
 exports.changedKeys = changedKeys;
 exports.missingKeys = missingKeys;
 exports.Store = Store;
