@@ -1,4 +1,4 @@
-# attodom
+# attostore
 
 *small json in-memory store with path events, ~3kb min, ~1kb gz*
 
@@ -7,26 +7,19 @@
 ## Examples
 
 ```javascript
-import {Store} from 'attostore'
-
+var Store = require('attostore')
 var store = new Store({})
 
 store.on('a/b', function(val, key, old) {
   console.log('changed', key, 'from', old, 'to', val)
 })
 
-store.run([{path:'a/b', data:'hello'}])
-store.set(['a', 'b'], data:'world')
+store.run([{path:'a/b', data:'hello'}]) //runs a series of patches
+store.set(['a', 'b'], 'world') //directly sets a value
 ```
-
-supports different environments
-* CJS: `var create = require('attostore').createStore`
-* ES modules: `import {createStore} from 'attostore'`
-
 
 ### Features, Limitations, Gotcha
 
-* available in CommonJS and ES6 modules
 * only the last item of an Array can be deleted to avoid shifting of keys
 * No Array splicing to keep the keys unchanged. additions and removals from the end only (eg. push pop)
 * only JSON types supported (Array, Object, string, number, boolean, null)
@@ -57,7 +50,7 @@ new Store(initValue: `any`): `Store`
 
 `Array|string|number`
 * `0`, `"0"`, `[0]`, `["0"]` are equivalent
-* `''`, `null`, `undefined` are equivalent
+* `''`, `null`, `undefined`, `[]` all point to the root
 * `a/b`, `["a", "b"]` are equivalent
 
 ## License
