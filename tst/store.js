@@ -1,9 +1,7 @@
-var S = require( '../index' ),
+var Store = require( '../index' ),
+		changed = require('../changed-keys'),
+		missing = require('../missing-keys'),
 		t = require('cotest')
-
-var Store = S.Store,
-		changed = S.changedKeys,
-		missing = S.missingKeys
 
 function compare(v,k,o) {
 	t('!==', v, o, 'child event only if value changed: ')
@@ -82,7 +80,7 @@ t('store - errors', function() {
 	})
 
 	t('===', store.set('a/b', 9) instanceof Error, true)
-	t('===', store.set('a/b') instanceof Error, true)
+	t('===', store.set('a/b', undefined) instanceof Error, true)
 	var res = store.run([{path:'a/b', data:9}])
 	t('===', res instanceof Error && res.message, 'invalid path: a/b')
 })

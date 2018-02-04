@@ -1,4 +1,6 @@
-import {cType} from './type'
+var cType = require('./c-type')
+
+module.exports = isEqual
 
 /**
  * deep Equal check on JSON-like objects
@@ -7,7 +9,7 @@ import {cType} from './type'
  * @param {*} ref - the reference
  * @return {boolean|void} true if equal
  */
-export function isEqual(obj, ref) {
+function isEqual(obj, ref) {
 	var cO = cType(obj),
 			cR = cType(ref)
 	if (cO !== cR) return false

@@ -1,5 +1,5 @@
-import {isObj} from './type'
+var isObj = require('./is-obj')
 
-export function getKey(obj, key) {
+module.exports = function getKey(obj, key) {
 	if (isObj(obj)) return obj[key]
 }
