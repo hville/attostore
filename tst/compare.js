@@ -1,8 +1,6 @@
-var S = require( '../index' ),
+var changed = require('../changed-keys'),
+		missing = require('../missing-keys'),
 		t = require('cotest')
-
-var changed = S.changedKeys,
-		missing = S.missingKeys
 
 
 t('compare - changed', function() {
